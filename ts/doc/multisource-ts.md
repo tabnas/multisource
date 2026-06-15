@@ -23,9 +23,9 @@ Peer dependencies: `@tabnas/jsonic`, `@tabnas/directive`, `@tabnas/path`.
 The memory resolver is the simplest way to try the plugin. Files are passed
 as a `path → content` map:
 
-```ts
+```js
 import { Jsonic } from '@tabnas/jsonic'
-import MultiSource from '@tabnas/multisource'
+import { MultiSource } from '@tabnas/multisource'
 import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
 const j = Jsonic.make().use(MultiSource, {
@@ -34,8 +34,7 @@ const j = Jsonic.make().use(MultiSource, {
   }),
 })
 
-j('x:@a.jsonic, y:2')
-// => { x: { a: 1 }, y: 2 }
+j('x:@a.jsonic, y:2')   // => { x: { a: 1 }, y: 2 }
 ```
 
 ### Load references from files on disk
@@ -61,10 +60,16 @@ The `path` option sets the base directory for relative references.
 A reference at pair-level splices every key from the referenced map into the
 parent:
 
-```ts
-// a.jsonic contains: a:1 b:2
-j('{@a.jsonic, c:3}')
-// => { a: 1, b: 2, c: 3 }
+```js
+import { Jsonic } from '@tabnas/jsonic'
+import { MultiSource } from '@tabnas/multisource'
+import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
+
+const j = Jsonic.make().use(MultiSource, {
+  resolver: makeMemResolver({ 'a.jsonic': 'a:1 b:2' }),
+})
+
+j('{@a.jsonic, c:3}')   // => { a: 1, b: 2, c: 3 }
 ```
 
 
@@ -73,10 +78,16 @@ j('{@a.jsonic, c:3}')
 By default, `@foo` is tried against `.jsonic`, `.jsc`, `.json`, `.js` (in
 that order) and against `foo/index.<ext>`:
 
-```ts
-// 'g/index.jsc' contains: g:6
-j('g:@g')
-// => { g: { g: 6 } }
+```js
+import { Jsonic } from '@tabnas/jsonic'
+import { MultiSource } from '@tabnas/multisource'
+import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
+
+const j = Jsonic.make().use(MultiSource, {
+  resolver: makeMemResolver({ 'g/index.jsc': 'g:6' }),
+})
+
+j('g:@g')   // => { g: { g: 6 } }
 ```
 
 
@@ -179,7 +190,7 @@ as the sole content of a pair.
 ### Plugin
 
 ```ts
-import MultiSource, { MultiSourceOptions } from '@tabnas/multisource'
+import { MultiSource, MultiSourceOptions } from '@tabnas/multisource'
 
 Jsonic.make().use(MultiSource, options: MultiSourceOptions)
 ```

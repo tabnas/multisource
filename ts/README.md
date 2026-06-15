@@ -33,7 +33,7 @@ Explanation, Reference).
 //   a:1
 
 import { Jsonic } from '@tabnas/jsonic'
-import MultiSource from '@tabnas/multisource'
+import { MultiSource } from '@tabnas/multisource'
 import { makeFileResolver } from '@tabnas/multisource/resolver/file'
 
 const j = Jsonic.make().use(MultiSource, {
