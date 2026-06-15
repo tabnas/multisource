@@ -7,13 +7,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const node_test_1 = require("node:test");
 const node_assert_1 = __importDefault(require("node:assert"));
 const memfs_1 = require("memfs");
-const jsonic_1 = require("jsonic");
+const jsonic_1 = require("@tabnas/jsonic");
 const multisource_1 = require("../dist/multisource");
 // import { makeJavaScriptProcessor } from '../dist/processor/js'
 const mem_1 = require("../dist/resolver/mem");
 const file_1 = require("../dist/resolver/file");
 const pkg_1 = require("../dist/resolver/pkg");
-const path_1 = require("@jsonic/path");
+const path_1 = require("@tabnas/path");
 (0, node_test_1.describe)('multisource', () => {
     (0, node_test_1.test)('happy', () => {
         const o = {

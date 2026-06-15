@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	jsonic "github.com/jsonicjs/jsonic/go"
+	jsonic "github.com/tabnas/jsonic/go"
 )
 
 // Version is the Go module release version.

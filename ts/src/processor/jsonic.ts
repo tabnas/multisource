@@ -1,6 +1,6 @@
 /* Copyright (c) 2021-2023 Richard Rodger, MIT License */
 
-import { Jsonic, Rule, Context } from 'jsonic'
+import { Jsonic, Rule, Context } from '@tabnas/jsonic'
 import { MultiSourceOptions, Processor, Resolution } from '../multisource'
 
 

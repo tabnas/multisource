@@ -5,8 +5,8 @@ package multisource
 import (
 	"fmt"
 
-	directive "github.com/jsonicjs/directive/go"
-	jsonic "github.com/jsonicjs/jsonic/go"
+	directive "github.com/tabnas/directive/go"
+	jsonic "github.com/tabnas/jsonic/go"
 )
 
 // MultiSource is a jsonic plugin that adds multisource reference support.

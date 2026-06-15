@@ -2,8 +2,8 @@
 
 import * as SystemFs from 'node:fs'
 
-import { Jsonic, Context, Rule, Plugin } from 'jsonic'
-import { Directive, DirectiveOptions } from '@jsonic/directive'
+import { Jsonic, Context, Rule, Plugin } from '@tabnas/jsonic'
+import { Directive, DirectiveOptions } from '@tabnas/directive'
 
 import { makeJsonicProcessor } from './processor/jsonic'
 import { makeJavaScriptProcessor } from './processor/js'
@@ -191,7 +191,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
 
       // let proc = processor[res.kind] || processor[NONE]
       let proc = getProcessor(res.kind, processor)
-      proc(res, popts, rule, ctxproc, jsonic)
+      proc(res, popts, rule, ctxproc as Context, jsonic)
 
       // Handle the {@foo} case, injecting keys into parent map.
       if ('pair' === from) {
@@ -217,7 +217,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
       return undefined
     },
 
-    custom: (jsonic: Jsonic, { OPEN, name }: any) => {
+    custom: (jsonic: any, { OPEN, name }: any) => {
       // Handle special case of @foo first token - assume a map
       jsonic.grammar({
         rule: {
@@ -264,7 +264,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
     },
   }
 
-  jsonic.use(Directive, dopts)
+  jsonic.use(Directive as any, dopts)
 }
 
 // Convenience maker for Processors

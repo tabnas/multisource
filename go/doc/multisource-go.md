@@ -9,15 +9,15 @@ processes the resolved text, and splices the result into the parse output.
 ## Installation
 
 ```sh
-go get github.com/jsonicjs/multisource/go
+go get github.com/tabnas/multisource/go
 ```
 
 Imports:
 
 ```go
 import (
-    multisource "github.com/jsonicjs/multisource/go"
-    jsonic "github.com/jsonicjs/jsonic/go"
+    multisource "github.com/tabnas/multisource/go"
+    jsonic "github.com/tabnas/jsonic/go"
 )
 ```
 

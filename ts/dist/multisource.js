@@ -38,8 +38,8 @@ exports.meta = exports.TOP = exports.NONE = exports.MultiSource = void 0;
 exports.resolvePathSpec = resolvePathSpec;
 exports.preloadFiles = preloadFiles;
 const SystemFs = __importStar(require("node:fs"));
-const jsonic_1 = require("jsonic");
-const directive_1 = require("@jsonic/directive");
+const jsonic_1 = require("@tabnas/jsonic");
+const directive_1 = require("@tabnas/directive");
 const jsonic_2 = require("./processor/jsonic");
 const js_1 = require("./processor/js");
 // Unknown source reference file extension.

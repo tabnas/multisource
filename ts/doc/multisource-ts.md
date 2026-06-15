@@ -10,10 +10,10 @@ output.
 ## Installation
 
 ```sh
-npm install @jsonic/multisource
+npm install @tabnas/multisource
 ```
 
-Peer dependencies: `jsonic`, `@jsonic/directive`, `@jsonic/path`.
+Peer dependencies: `@tabnas/jsonic`, `@tabnas/directive`, `@tabnas/path`.
 
 
 ## Tutorials
@@ -24,9 +24,9 @@ The memory resolver is the simplest way to try the plugin. Files are passed
 as a `path → content` map:
 
 ```ts
-import { Jsonic } from 'jsonic'
-import MultiSource from '@jsonic/multisource'
-import { makeMemResolver } from '@jsonic/multisource/resolver/mem'
+import { Jsonic } from '@tabnas/jsonic'
+import MultiSource from '@tabnas/multisource'
+import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
 const j = Jsonic.make().use(MultiSource, {
   resolver: makeMemResolver({
@@ -43,7 +43,7 @@ j('x:@a.jsonic, y:2')
 Swap the memory resolver for the file resolver:
 
 ```ts
-import { makeFileResolver } from '@jsonic/multisource/resolver/file'
+import { makeFileResolver } from '@tabnas/multisource/resolver/file'
 
 const j = Jsonic.make().use(MultiSource, {
   resolver: makeFileResolver(),
@@ -88,7 +88,7 @@ A resolver is any function matching the `Resolver` signature. It receives a
 `PathSpec` and must return a `Resolution`:
 
 ```ts
-import { Resolver } from '@jsonic/multisource'
+import { Resolver } from '@tabnas/multisource'
 
 const httpResolver: Resolver = (spec, _popts, _rule, _ctx, _jsonic) => ({
   ...spec,
@@ -103,7 +103,7 @@ Processors map a resolved source string to a value. Pick them by kind
 (extension without the dot):
 
 ```ts
-import { MultiSource } from '@jsonic/multisource'
+import { MultiSource } from '@tabnas/multisource'
 
 Jsonic.make().use(MultiSource, {
   resolver: makeFileResolver(),
@@ -127,7 +127,7 @@ Use the `pkg` resolver to reference files inside installed packages. Virtual
 filesystems (`ctx.meta.fs`) are honoured.
 
 ```ts
-import { makePkgResolver } from '@jsonic/multisource/resolver/pkg'
+import { makePkgResolver } from '@tabnas/multisource/resolver/pkg'
 
 const j = Jsonic.make().use(MultiSource, {
   resolver: makePkgResolver(),
@@ -179,7 +179,7 @@ as the sole content of a pair.
 ### Plugin
 
 ```ts
-import MultiSource, { MultiSourceOptions } from '@jsonic/multisource'
+import MultiSource, { MultiSourceOptions } from '@tabnas/multisource'
 
 Jsonic.make().use(MultiSource, options: MultiSourceOptions)
 ```
@@ -198,16 +198,16 @@ Jsonic.make().use(MultiSource, options: MultiSourceOptions)
 
 | Export               | Module                                  | Notes                              |
 | -------------------- | --------------------------------------- | ---------------------------------- |
-| `makeMemResolver`    | `@jsonic/multisource/resolver/mem`      | In-memory map of path → content.   |
-| `makeFileResolver`   | `@jsonic/multisource/resolver/file`     | Reads from `node:fs` (or `ctx.meta.fs`). |
-| `makePkgResolver`    | `@jsonic/multisource/resolver/pkg`      | Resolves via `node_modules`.       |
+| `makeMemResolver`    | `@tabnas/multisource/resolver/mem`      | In-memory map of path → content.   |
+| `makeFileResolver`   | `@tabnas/multisource/resolver/file`     | Reads from `node:fs` (or `ctx.meta.fs`). |
+| `makePkgResolver`    | `@tabnas/multisource/resolver/pkg`      | Resolves via `node_modules`.       |
 
 ### Processors
 
 | Export                     | Module                                 | Handles                  |
 | -------------------------- | -------------------------------------- | ------------------------ |
-| `makeJsonicProcessor`      | `@jsonic/multisource/processor/jsonic` | `.jsonic`, `.jsc`        |
-| `makeJavaScriptProcessor`  | `@jsonic/multisource/processor/js`     | `.js` (opt-in `eval`)    |
+| `makeJsonicProcessor`      | `@tabnas/multisource/processor/jsonic` | `.jsonic`, `.jsc`        |
+| `makeJavaScriptProcessor`  | `@tabnas/multisource/processor/js`     | `.js` (opt-in `eval`)    |
 
 JSON kinds are handled by a built-in processor and do not require a separate
 import.

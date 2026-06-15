@@ -1,6 +1,6 @@
 /* Copyright (c) 2021-2025 Richard Rodger and other contributors, MIT License */
 
-import { Rule, Context } from 'jsonic'
+import { Rule, Context } from '@tabnas/jsonic'
 import { MultiSourceOptions, Resolver, Resolution, resolvePathSpec, NONE, PathSpec } from '../multisource'
 
 

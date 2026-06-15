@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	jsonic "github.com/jsonicjs/jsonic/go"
-	path "github.com/jsonicjs/path/go"
+	jsonic "github.com/tabnas/jsonic/go"
+	path "github.com/tabnas/path/go"
 )
 
 // assert is a test helper that checks deep equality.

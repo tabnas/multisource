@@ -1,4 +1,4 @@
-# @jsonic/multisource
+# @tabnas/multisource
 
 A Jsonic / tabnas plugin.
 

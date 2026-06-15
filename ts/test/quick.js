@@ -11,8 +11,8 @@
 
 
 
-const { Jsonic } = require('jsonic')
-const { Debug } = require('jsonic/debug')
+const { Jsonic } = require('@tabnas/jsonic')
+const { Debug } = require('@tabnas/jsonic/debug')
 const { MultiSource } = require('..')
 const { makeFileResolver } = require('../dist/resolver/file')
 const { makeMemResolver } = require('../dist/resolver/mem')

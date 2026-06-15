@@ -1,5 +1,5 @@
 import * as SystemFs from 'node:fs';
-import { Jsonic, Context, Rule, Plugin } from 'jsonic';
+import { Jsonic, Context, Rule, Plugin } from '@tabnas/jsonic';
 type FST = typeof SystemFs;
 interface MultiSourceMeta {
     path?: string;

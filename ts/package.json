@@ -1,11 +1,11 @@
 {
-  "name": "@jsonic/multisource",
+  "name": "@tabnas/multisource",
   "version": "2.7.0",
   "description": "",
   "main": "dist/multisource.js",
   "type": "commonjs",
   "types": "dist/multisource.d.ts",
-  "homepage": "https://github.com/jsonicjs/multisource",
+  "homepage": "https://github.com/tabnas/multisource",
   "keywords": [
     "jsonic",
     "json",
@@ -16,7 +16,7 @@
   "author": "Richard Rodger, http://richardrodger.com",
   "repository": {
     "type": "git",
-    "url": "git://github.com/jsonicjs/multisource.git"
+    "url": "git://github.com/tabnas/multisource.git"
   },
   "scripts": {
     "test": "node --enable-source-maps --test \"dist-test/*.test.js\"",
@@ -51,8 +51,8 @@
     "typescript": "6.0.3"
   },
   "peerDependencies": {
-    "@jsonic/directive": ">=2",
-    "@jsonic/path": ">=1",
-    "jsonic": ">=2"
+    "@tabnas/directive": "file:../../directive/ts",
+    "@tabnas/path": "file:../../path/ts",
+    "@tabnas/jsonic": "file:../../jsonic/ts"
   }
 }

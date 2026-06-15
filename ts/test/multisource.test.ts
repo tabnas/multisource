@@ -5,14 +5,14 @@ import assert from 'node:assert'
 
 import { memfs } from 'memfs'
 
-import { Jsonic } from 'jsonic'
-import { Debug } from 'jsonic/debug'
+import { Jsonic } from '@tabnas/jsonic'
+import { Debug } from '@tabnas/jsonic/debug'
 import { MultiSource, MultiSourceOptions, preloadFiles } from '../dist/multisource'
 // import { makeJavaScriptProcessor } from '../dist/processor/js'
 import { makeMemResolver } from '../dist/resolver/mem'
 import { makeFileResolver } from '../dist/resolver/file'
 import { makePkgResolver } from '../dist/resolver/pkg'
-import { Path } from '@jsonic/path'
+import { Path } from '@tabnas/path'
 
 
 describe('multisource', () => {
@@ -354,7 +354,7 @@ describe('multisource', () => {
     }
     const j = Jsonic.make()
       .use(MultiSource, o)
-      .use(Path)
+      .use(Path as any)
       .use((jsonic) => {
         jsonic.rule('val', (rs) => {
           rs.ac(false, (r) => {
