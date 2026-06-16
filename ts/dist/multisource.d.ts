@@ -1,5 +1,5 @@
 import * as SystemFs from 'node:fs';
-import { Jsonic, Context, Rule, Plugin } from '@tabnas/jsonic';
+import { Tabnas, Context, Rule, Plugin } from '@tabnas/parser';
 type FST = typeof SystemFs;
 interface MultiSourceMeta {
     path?: string;
@@ -35,8 +35,8 @@ type Resolution = PathSpec & {
     found: boolean;
     search?: string[];
 };
-type Resolver = (spec: PathSpec, popts: MultiSourceOptions, rule: Rule, ctx: Context, jsonic: Jsonic) => Resolution;
-type Processor = (res: Resolution, popts: MultiSourceOptions, rule: Rule, ctx: Context, jsonic: Jsonic) => void;
+type Resolver = (spec: PathSpec, popts: MultiSourceOptions, rule: Rule, ctx: Context, tn: Tabnas) => Resolution;
+type Processor = (res: Resolution, popts: MultiSourceOptions, rule: Rule, ctx: Context, tn: Tabnas) => void;
 type Dependency = {
     tar: string | typeof TOP;
     src: string;

@@ -32,15 +32,16 @@ Explanation, Reference).
 // file: foo.jsonic
 //   a:1
 
-import { Jsonic } from '@tabnas/jsonic'
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
 import { makeFileResolver } from '@tabnas/multisource/resolver/file'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeFileResolver(),
 })
 
-j('@"foo.jsonic" b:2')
+j.parse('@"foo.jsonic" b:2')
 // => { a: 1, b: 2 }
 ```
 

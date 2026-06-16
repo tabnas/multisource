@@ -3,7 +3,7 @@
 import * as SystemFs from 'node:fs'
 import * as Path from 'node:path'
 import { type FST, MultiSourceOptions, Resolver, Resolution, resolvePathSpec, NONE } from '../multisource'
-import { Rule, Context } from '@tabnas/jsonic'
+import { Rule, Context } from '@tabnas/parser'
 import { buildPotentials } from './mem'
 
 

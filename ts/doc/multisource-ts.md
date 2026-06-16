@@ -10,10 +10,12 @@ output.
 ## Installation
 
 ```sh
-npm install @tabnas/multisource
+npm install @tabnas/multisource @tabnas/parser @tabnas/jsonic
 ```
 
-Peer dependencies: `@tabnas/jsonic`, `@tabnas/directive`, `@tabnas/path`.
+Peer dependencies: `@tabnas/parser`, `@tabnas/jsonic`, `@tabnas/directive`,
+`@tabnas/path`. The engine is the `@tabnas/parser` `Tabnas` parser; `@tabnas/jsonic`
+supplies the relaxed-JSON grammar.
 
 
 ## Tutorials
@@ -24,17 +26,18 @@ The memory resolver is the simplest way to try the plugin. Files are passed
 as a `path → content` map:
 
 ```js
-import { Jsonic } from '@tabnas/jsonic'
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
 import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeMemResolver({
     'a.jsonic': 'a:1',
   }),
 })
 
-j('x:@a.jsonic, y:2')   // => { x: { a: 1 }, y: 2 }
+j.parse('x:@a.jsonic, y:2')   // => { x: { a: 1 }, y: 2 }
 ```
 
 ### Load references from files on disk
@@ -42,14 +45,16 @@ j('x:@a.jsonic, y:2')   // => { x: { a: 1 }, y: 2 }
 Swap the memory resolver for the file resolver:
 
 ```ts
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { makeFileResolver } from '@tabnas/multisource/resolver/file'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeFileResolver(),
   path: '/path/to/base',
 })
 
-j('@"config.jsonic"')
+j.parse('@"config.jsonic"')
 ```
 
 The `path` option sets the base directory for relative references.
@@ -61,15 +66,16 @@ A reference at pair-level splices every key from the referenced map into the
 parent:
 
 ```js
-import { Jsonic } from '@tabnas/jsonic'
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
 import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeMemResolver({ 'a.jsonic': 'a:1 b:2' }),
 })
 
-j('{@a.jsonic, c:3}')   // => { a: 1, b: 2, c: 3 }
+j.parse('{@a.jsonic, c:3}')   // => { a: 1, b: 2, c: 3 }
 ```
 
 
@@ -79,15 +85,16 @@ By default, `@foo` is tried against `.jsonic`, `.jsc`, `.json`, `.js` (in
 that order) and against `foo/index.<ext>`:
 
 ```js
-import { Jsonic } from '@tabnas/jsonic'
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
 import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeMemResolver({ 'g/index.jsc': 'g:6' }),
 })
 
-j('g:@g')   // => { g: { g: 6 } }
+j.parse('g:@g')   // => { g: { g: 6 } }
 ```
 
 
@@ -101,7 +108,7 @@ A resolver is any function matching the `Resolver` signature. It receives a
 ```ts
 import { Resolver } from '@tabnas/multisource'
 
-const httpResolver: Resolver = (spec, _popts, _rule, _ctx, _jsonic) => ({
+const httpResolver: Resolver = (spec, _popts, _rule, _ctx, _tn) => ({
   ...spec,
   src: fetchSync(spec.full),
   found: true,
@@ -116,7 +123,7 @@ Processors map a resolved source string to a value. Pick them by kind
 ```ts
 import { MultiSource } from '@tabnas/multisource'
 
-Jsonic.make().use(MultiSource, {
+new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeFileResolver(),
   processor: {
     yaml: (res) => { res.val = YAML.parse(res.src) },
@@ -129,7 +136,7 @@ Jsonic.make().use(MultiSource, {
 If `@` collides with your syntax, pick another single character:
 
 ```ts
-Jsonic.make().use(MultiSource, { resolver, markchar: '$' })
+new Tabnas().use(jsonic).use(MultiSource, { resolver, markchar: '$' })
 ```
 
 ### Resolve from an installed npm package
@@ -138,13 +145,15 @@ Use the `pkg` resolver to reference files inside installed packages. Virtual
 filesystems (`ctx.meta.fs`) are honoured.
 
 ```ts
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { makePkgResolver } from '@tabnas/multisource/resolver/pkg'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makePkgResolver(),
 })
 
-j('@"some-pkg/config.jsonic"')
+j.parse('@"some-pkg/config.jsonic"')
 ```
 
 
@@ -192,7 +201,7 @@ as the sole content of a pair.
 ```ts
 import { MultiSource, MultiSourceOptions } from '@tabnas/multisource'
 
-Jsonic.make().use(MultiSource, options: MultiSourceOptions)
+new Tabnas().use(jsonic).use(MultiSource, options: MultiSourceOptions)
 ```
 
 ### `MultiSourceOptions`
@@ -246,7 +255,7 @@ type Resolver = (
   popts: MultiSourceOptions,
   rule: Rule,
   ctx: Context,
-  jsonic: Jsonic,
+  tn: Tabnas,
 ) => Resolution
 
 type Processor = (
@@ -254,6 +263,6 @@ type Processor = (
   popts: MultiSourceOptions,
   rule: Rule,
   ctx: Context,
-  jsonic: Jsonic,
+  tn: Tabnas,
 ) => void
 ```

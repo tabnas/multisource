@@ -3,9 +3,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.makeJsonicProcessor = makeJsonicProcessor;
 function makeJsonicProcessor() {
-    return function JsonicProcessor(res, _popts, _rule, ctx, jsonic) {
+    return function JsonicProcessor(res, _popts, _rule, ctx, tn) {
         if (null != res.src && null != res.full) {
-            res.val = jsonic(res.src, ctx.meta);
+            res.val = tn.parse(res.src, ctx.meta);
         }
     };
 }
