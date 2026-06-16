@@ -60,6 +60,16 @@ out, _ := j.Parse(`{@foo.jsonic, b:2}`)
 ```
 
 
+
+## Grammar diagram
+
+The installed grammar as a railroad/syntax diagram, generated from the live
+grammar with [`@tabnas/railroad`](https://github.com/tabnas/railroad):
+
+![multisource grammar railroad diagram](doc/grammar.svg)
+
+A vertical ASCII version is in [`doc/grammar.txt`](doc/grammar.txt).
+
 ## License
 
 MIT © Richard Rodger and contributors.
