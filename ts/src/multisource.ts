@@ -2,7 +2,12 @@
 
 import * as SystemFs from 'node:fs'
 
-import { Jsonic, Context, Rule, Plugin } from '@tabnas/jsonic'
+// The engine is the tabnas parser; jsonic supplies the relaxed-JSON
+// grammar. Engine types come from @tabnas/parser; the legacy Jsonic
+// factory (still provided by @tabnas/jsonic) backs the strict-JSON
+// processor below.
+import { Tabnas, Context, Rule, Plugin } from '@tabnas/parser'
+import { Jsonic } from '@tabnas/jsonic'
 import { Directive, DirectiveOptions } from '@tabnas/directive'
 
 import { makeJsonicProcessor } from './processor/jsonic'
@@ -63,7 +68,7 @@ type Resolver = (
   popts: MultiSourceOptions,
   rule: Rule,
   ctx: Context,
-  jsonic: Jsonic,
+  tn: Tabnas,
 ) => Resolution
 
 // Process the source into a value.
@@ -72,7 +77,7 @@ type Processor = (
   popts: MultiSourceOptions,
   rule: Rule,
   ctx: Context,
-  jsonic: Jsonic,
+  tn: Tabnas,
 ) => void
 
 type Dependency = {
@@ -91,12 +96,12 @@ type DependencyMap = {
 // The top of the dependence tree.
 const TOP = Symbol('TOP')
 
-const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
+const MultiSource: Plugin = (tn: Tabnas, popts: MultiSourceOptions) => {
   const markchar = popts.markchar as string
   const resolver = popts.resolver as Resolver
   const processor = popts.processor as { [kind: string]: Processor }
 
-  const { deep } = jsonic.util
+  const { deep } = tn.util
 
   // Normalize implicit extensions to format `.name`.
   const implictExt = (popts.implictExt || []) as string[]
@@ -105,7 +110,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
     implictExt[extI] = ext.startsWith('.') ? ext : '.' + ext
   }
 
-  jsonic.options({
+  tn.options({
     error: {
       multisource_not_found: 'source not found: {path}',
     },
@@ -133,7 +138,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
       let from = rule.parent.name
       let spec = rule.child.node
 
-      let res = resolver(spec, popts, rule, ctx, jsonic)
+      let res = resolver(spec, popts, rule, ctx, tn)
 
       if (null == res || !res.found) {
         return rule.parent?.o0.bad('multisource_not_found', {
@@ -191,7 +196,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
 
       // let proc = processor[res.kind] || processor[NONE]
       let proc = getProcessor(res.kind, processor)
-      proc(res, popts, rule, ctxproc as Context, jsonic)
+      proc(res, popts, rule, ctxproc as Context, tn)
 
       // Handle the {@foo} case, injecting keys into parent map.
       if ('pair' === from) {
@@ -217,9 +222,9 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
       return undefined
     },
 
-    custom: (jsonic: any, { OPEN, name }: any) => {
+    custom: (tn: any, { OPEN, name }: any) => {
       // Handle special case of @foo first token - assume a map
-      jsonic.grammar({
+      tn.grammar({
         rule: {
           val: {
             open: [
@@ -264,7 +269,7 @@ const MultiSource: Plugin = (jsonic: Jsonic, popts: MultiSourceOptions) => {
     },
   }
 
-  jsonic.use(Directive as any, dopts)
+  tn.use(Directive as any, dopts)
 }
 
 // Convenience maker for Processors

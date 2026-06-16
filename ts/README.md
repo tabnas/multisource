@@ -32,15 +32,16 @@ Explanation, Reference).
 // file: foo.jsonic
 //   a:1
 
-import { Jsonic } from '@tabnas/jsonic'
+import { Tabnas } from '@tabnas/parser'
+import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
 import { makeFileResolver } from '@tabnas/multisource/resolver/file'
 
-const j = Jsonic.make().use(MultiSource, {
+const j = new Tabnas().use(jsonic).use(MultiSource, {
   resolver: makeFileResolver(),
 })
 
-j('@"foo.jsonic" b:2')
+j.parse('@"foo.jsonic" b:2')
 // => { a: 1, b: 2 }
 ```
 
@@ -58,6 +59,16 @@ out, _ := j.Parse(`{@foo.jsonic, b:2}`)
 // => map[a:1 b:2]
 ```
 
+
+
+## Grammar diagram
+
+The installed grammar as a railroad/syntax diagram, generated from the live
+grammar with [`@tabnas/railroad`](https://github.com/tabnas/railroad):
+
+![multisource grammar railroad diagram](doc/grammar.svg)
+
+A vertical ASCII version is in [`doc/grammar.txt`](doc/grammar.txt).
 
 ## License
 

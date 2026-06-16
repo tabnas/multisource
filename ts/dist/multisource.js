@@ -48,18 +48,18 @@ exports.NONE = NONE;
 // The top of the dependence tree.
 const TOP = Symbol('TOP');
 exports.TOP = TOP;
-const MultiSource = (jsonic, popts) => {
+const MultiSource = (tn, popts) => {
     const markchar = popts.markchar;
     const resolver = popts.resolver;
     const processor = popts.processor;
-    const { deep } = jsonic.util;
+    const { deep } = tn.util;
     // Normalize implicit extensions to format `.name`.
     const implictExt = (popts.implictExt || []);
     for (let extI = 0; extI < implictExt.length; extI++) {
         let ext = implictExt[extI];
         implictExt[extI] = ext.startsWith('.') ? ext : '.' + ext;
     }
-    jsonic.options({
+    tn.options({
         error: {
             multisource_not_found: 'source not found: {path}',
         },
@@ -84,7 +84,7 @@ const MultiSource = (jsonic, popts) => {
         action: function multisourceStateAction(rule, ctx) {
             let from = rule.parent.name;
             let spec = rule.child.node;
-            let res = resolver(spec, popts, rule, ctx, jsonic);
+            let res = resolver(spec, popts, rule, ctx, tn);
             if (null == res || !res.found) {
                 return rule.parent?.o0.bad('multisource_not_found', {
                     ...(res || {}),
@@ -132,7 +132,7 @@ const MultiSource = (jsonic, popts) => {
             };
             // let proc = processor[res.kind] || processor[NONE]
             let proc = getProcessor(res.kind, processor);
-            proc(res, popts, rule, ctxproc, jsonic);
+            proc(res, popts, rule, ctxproc, tn);
             // Handle the {@foo} case, injecting keys into parent map.
             if ('pair' === from) {
                 if (ctx.cfg.map.merge) {
@@ -150,9 +150,9 @@ const MultiSource = (jsonic, popts) => {
             }
             return undefined;
         },
-        custom: (jsonic, { OPEN, name }) => {
+        custom: (tn, { OPEN, name }) => {
             // Handle special case of @foo first token - assume a map
-            jsonic.grammar({
+            tn.grammar({
                 rule: {
                     val: {
                         open: [
@@ -196,7 +196,7 @@ const MultiSource = (jsonic, popts) => {
             });
         },
     };
-    jsonic.use(directive_1.Directive, dopts);
+    tn.use(directive_1.Directive, dopts);
 };
 exports.MultiSource = MultiSource;
 // Convenience maker for Processors

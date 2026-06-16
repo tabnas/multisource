@@ -1,6 +1,6 @@
 /* Copyright (c) 2021-2023 Richard Rodger, MIT License */
 
-import { Jsonic, Rule, Context } from '@tabnas/jsonic'
+import { Tabnas, Rule, Context } from '@tabnas/parser'
 import { MultiSourceOptions, Processor, Resolution } from '../multisource'
 
 
@@ -11,10 +11,10 @@ export function makeJsonicProcessor(): Processor {
     _popts: MultiSourceOptions,
     _rule: Rule,
     ctx: Context,
-    jsonic: Jsonic
+    tn: Tabnas
   ) {
     if (null != res.src && null != res.full) {
-      res.val = jsonic(res.src, ctx.meta)
+      res.val = tn.parse(res.src, ctx.meta)
     }
   }
 }
