@@ -12,7 +12,7 @@
 
 
 const { Jsonic } = require('@tabnas/jsonic')
-const { Debug } = require('@tabnas/jsonic/debug')
+const { Debug } = require('@tabnas/debug')
 const { MultiSource } = require('..')
 const { makeFileResolver } = require('../dist/resolver/file')
 const { makeMemResolver } = require('../dist/resolver/mem')
