@@ -7,7 +7,7 @@ import { memfs } from 'memfs'
 
 import { Tabnas } from '@tabnas/parser'
 import { jsonic } from '@tabnas/jsonic'
-import { Debug } from '@tabnas/jsonic/debug'
+import { Debug } from '@tabnas/debug'
 import { MultiSource, MultiSourceOptions, preloadFiles } from '../dist/multisource'
 // import { makeJavaScriptProcessor } from '../dist/processor/js'
 import { makeMemResolver } from '../dist/resolver/mem'
