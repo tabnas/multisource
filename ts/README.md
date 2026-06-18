@@ -1,7 +1,8 @@
 # multisource
 
 Load partial values from multiple sources (files, packages, memory) into a
-single [Tabnas](https://github.com/tabnas/jsonic) parse result.
+single [Tabnas](https://github.com/tabnas/jsonic) parse result. A marked path
+(`@a.jsonic`) is resolved, parsed, and spliced in place.
 
 
 [![npm version](https://img.shields.io/npm/v/@tabnas/multisource.svg)](https://npmjs.com/package/@tabnas/multisource)
@@ -16,49 +17,41 @@ single [Tabnas](https://github.com/tabnas/jsonic) parse result.
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
 
 
-## Documentation
+## Install
 
-Documentation for both language implementations follows the
-[Diátaxis](https://diataxis.fr) framework (Tutorials, How-to guides,
-Explanation, Reference).
-
-- TypeScript: [`doc/multisource-ts.md`](doc/multisource-ts.md)
-- Go: [`doc/multisource-go.md`](doc/multisource-go.md)
+```sh
+npm install @tabnas/multisource @tabnas/parser @tabnas/jsonic
+```
 
 
-## Quick Example
+## Tiny example
 
-```ts
-// file: foo.jsonic
-//   a:1
-
+```js
 import { Tabnas } from '@tabnas/parser'
 import { jsonic } from '@tabnas/jsonic'
 import { MultiSource } from '@tabnas/multisource'
-import { makeFileResolver } from '@tabnas/multisource/resolver/file'
+import { makeMemResolver } from '@tabnas/multisource/resolver/mem'
 
 const j = new Tabnas().use(jsonic).use(MultiSource, {
-  resolver: makeFileResolver(),
+  resolver: makeMemResolver({ 'foo.jsonic': 'a:1' }),
 })
 
-j.parse('@"foo.jsonic" b:2')
-// => { a: 1, b: 2 }
+j.parse('@"foo.jsonic" b:2')   // => { a: 1, b: 2 }
 ```
 
-```go
-import (
-    tabnas "github.com/tabnas/jsonic/go"
-    multisource "github.com/tabnas/multisource/go"
-)
 
-files := map[string]string{"foo.jsonic": "a:1"}
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
-})
-out, _ := j.Parse(`{@foo.jsonic, b:2}`)
-// => map[a:1 b:2]
-```
+## Documentation
 
+Four-quadrant [Diátaxis](https://diataxis.fr) docs:
+
+- [Tutorial](doc/tutorial.md) — zero to a working multisource parse.
+- [How-to guide](doc/guide.md) — recipes: files, custom kinds, merging,
+  base paths, dependency tracking, preloading.
+- [Reference](doc/reference.md) — every export, option and type.
+- [Concepts](doc/concepts.md) — how it works and why; the engine relationship.
+
+The Go port lives in [`../go`](../go/) with its own
+[four-quadrant docs](../go/doc/).
 
 
 ## Grammar diagram
