@@ -61,13 +61,30 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				from = rule.Parent.Name
 			}
 
-			// Handle the {@foo} case, injecting keys into parent map.
+			// Handle the {@foo} case, injecting keys into parent map. Mirror
+			// the TS deep-merge (`deep(gp.node, res.val)`): the loaded map is
+			// deep-merged into the grandparent map IN PLACE, not a shallow
+			// per-key overwrite. Two requirements:
+			//   - existing nested values survive: `a:{d:3} @b.jsonic`
+			//     (b => a:{b,c}) must give {a:{d:3,b:1,c:2}}, not drop `d:3`.
+			//   - the grandparent map reference must stay stable, so a pair
+			//     that follows the directive (`@a.jsonic b:2`) writes into the
+			//     same node. TS's `deep` mutates its base in place; Go's `Deep`
+			//     returns a fresh map, so merge key-by-key back into gp instead
+			//     of reassigning gp.Node.
 			if from == "pair" {
-				if m, ok := res.(map[string]any); ok {
-					if rule.Parent.Parent != nil && rule.Parent.Parent != jsonic.NoRule {
-						if parent, ok := rule.Parent.Parent.Node.(map[string]any); ok {
+				if rule.Parent.Parent != nil && rule.Parent.Parent != jsonic.NoRule {
+					gp := rule.Parent.Parent
+					if parent, ok := gp.Node.(map[string]any); ok {
+						if m, ok := res.(map[string]any); ok {
 							for k, v := range m {
-								parent[k] = v
+								if ctx.Cfg.MapMerge != nil {
+									parent[k] = ctx.Cfg.MapMerge(parent[k], v, rule, ctx)
+								} else if ctx.Cfg.MapExtend {
+									parent[k] = jsonic.Deep(parent[k], v)
+								} else {
+									parent[k] = v
+								}
 							}
 						}
 					}

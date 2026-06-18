@@ -362,3 +362,63 @@ func TestTopLevelRef(t *testing.T) {
 	}
 	assert(t, "top-level", r, map[string]any{"a": float64(1)})
 }
+
+// TestDirectiveThenPair covers the README headline form `@"foo.jsonic" b:2`
+// and the surrounding implicit-container cases — a top-level `@` directive
+// followed by, preceded by, or interleaved with bare pairs. This is the case
+// the new builtin pair-close (pairval, which reads r.Node[key] directly) made
+// fragile: the implicit top-level map must be allocated so a following pair has
+// a seeded node, and the {@foo} merge must deep-merge into the grandparent map
+// in place so existing nested values survive and following pairs share the
+// node. (Previously latently uncovered by the Go suite.)
+func TestDirectiveThenPair(t *testing.T) {
+	files := map[string]string{
+		"a.jsonic": `a:1`,
+		"b.jsonic": `a:{b:1,c:2}`,
+		"d.jsonic": `d:3`,
+	}
+	j := MakeJsonic(MultiSourceOptions{
+		Resolver: MakeMemResolver(files),
+	})
+
+	cases := []struct {
+		name string
+		src  string
+		want map[string]any
+	}{
+		// README headline: directive first, then a pair.
+		{"directive-then-pair", `@a.jsonic b:2`,
+			map[string]any{"a": float64(1), "b": float64(2)}},
+		{"pair-then-directive", `b:2 @a.jsonic`,
+			map[string]any{"a": float64(1), "b": float64(2)}},
+		{"pair-directive-pair", `b:2 @a.jsonic c:3`,
+			map[string]any{"a": float64(1), "b": float64(2), "c": float64(3)}},
+		{"directive-only", `@a.jsonic`,
+			map[string]any{"a": float64(1)}},
+
+		// Two directives, bare and interleaved with pairs.
+		{"two-directives", `@a.jsonic @d.jsonic`,
+			map[string]any{"a": float64(1), "d": float64(3)}},
+		{"directive-pair-directive", `@a.jsonic x:11 @d.jsonic`,
+			map[string]any{"a": float64(1), "x": float64(11), "d": float64(3)}},
+
+		// Deep-merge into the grandparent map: the existing `d:3` must
+		// survive (in-place deep merge), not be overwritten.
+		{"merge-keep-existing", `a:{d:3} @b.jsonic`,
+			map[string]any{"a": map[string]any{"b": float64(1), "c": float64(2), "d": float64(3)}}},
+		{"merge-then-override", `a:{d:3} @b.jsonic a:{d:4,f:5}`,
+			map[string]any{"a": map[string]any{"b": float64(1), "c": float64(2), "d": float64(4), "f": float64(5)}}},
+		{"directive-then-override", `@b.jsonic a:{d:4,f:5}`,
+			map[string]any{"a": map[string]any{"b": float64(1), "c": float64(2), "d": float64(4), "f": float64(5)}}},
+		{"merge-then-pair", `@b.jsonic y:2`,
+			map[string]any{"a": map[string]any{"b": float64(1), "c": float64(2)}, "y": float64(2)}},
+	}
+
+	for _, tc := range cases {
+		r, err := j.Parse(tc.src)
+		if err != nil {
+			t.Fatalf("%s (%q): %v", tc.name, tc.src, err)
+		}
+		assert(t, tc.name, r, tc.want)
+	}
+}
