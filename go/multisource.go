@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"path"
 	"strings"
+	"sync"
 
 	jsonic "github.com/tabnas/jsonic/go"
 )
@@ -133,13 +134,28 @@ func ResolvePathSpec(specPath string, base string) PathSpec {
 	}
 }
 
+// defaultParser is a lazily-created instance reused by the no-options Parse
+// path, so repeated calls don't rebuild the engine and grammar each time.
+// Building the grammar dominates a parse — see perf_test.go — so a
+// rebuild-per-call Parse is many times slower than reusing one instance.
+// Parsing builds a fresh context per call and only reads instance state, so
+// the shared instance is safe for concurrent use. Mirrors @tabnas/yaml's Parse.
+//
+// Only the default (no-options) path is cached: callers that pass a
+// MultiSourceOptions get a fresh instance, because the options (resolver,
+// processors, base path) configure that instance and must not be shared.
+var (
+	defaultOnce   sync.Once
+	defaultParser *jsonic.Jsonic
+)
+
 // Parse parses a jsonic string with multisource support.
 func Parse(src string, opts ...MultiSourceOptions) (any, error) {
-	var o MultiSourceOptions
-	if len(opts) > 0 {
-		o = opts[0]
+	if len(opts) == 0 {
+		defaultOnce.Do(func() { defaultParser = MakeJsonic() })
+		return defaultParser.Parse(src)
 	}
-	j := MakeJsonic(o)
+	j := MakeJsonic(opts[0])
 	return j.Parse(src)
 }
 
