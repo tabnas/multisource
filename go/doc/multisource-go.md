@@ -16,8 +16,8 @@ Imports:
 
 ```go
 import (
-    multisource "github.com/tabnas/multisource/go"
-    jsonic "github.com/tabnas/jsonic/go"
+    tabnasmultisource "github.com/tabnas/multisource/go"
+    tabnasjsonic "github.com/tabnas/jsonic/go"
 )
 ```
 
@@ -30,8 +30,8 @@ import (
 
 ```go
 files := map[string]string{"a.jsonic": "{a:1}"}
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
 })
 out, _ := j.Parse(`{x: @a.jsonic}`)
 // out == map[string]any{"x": map[string]any{"a": float64(1)}}
@@ -47,8 +47,8 @@ files := map[string]string{
     "a.jsonic": "{a:1}",
     "b.jsonic": "{b:2}",
 }
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
 })
 out, _ := j.Parse(`{@a.jsonic, @b.jsonic, c:3}`)
 // out == map[string]any{"a": float64(1), "b": float64(2), "c": float64(3)}
@@ -61,8 +61,8 @@ By default, `@foo` is tried as `foo.jsonic`, `foo.jsc`, `foo.json`, and
 
 ```go
 files := map[string]string{"a.jsonic": "{a:1}"}
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
 })
 out, _ := j.Parse(`{x: @a}`)
 // out == map[string]any{"x": map[string]any{"a": float64(1)}}
@@ -77,15 +77,15 @@ Implement the `Resolver` function type. It must populate `Resolution.Found`
 and — if found — `Src` and `Full`:
 
 ```go
-httpResolver := func(spec multisource.PathSpec, _ *multisource.MultiSourceOptions) multisource.Resolution {
+httpResolver := func(spec tabnasmultisource.PathSpec, _ *tabnasmultisource.MultiSourceOptions) tabnasmultisource.Resolution {
     body := httpGet(spec.Full)
-    return multisource.Resolution{
+    return tabnasmultisource.Resolution{
         PathSpec: spec,
         Src:      body,
         Found:    body != "",
     }
 }
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{Resolver: httpResolver})
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{Resolver: httpResolver})
 ```
 
 ### Register a processor for a new file kind
@@ -94,10 +94,10 @@ Processors fill in `res.Val` from `res.Src`. Register them under the kind
 (extension without the dot):
 
 ```go
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
-    Processor: map[string]multisource.Processor{
-        "yaml": func(res *multisource.Resolution, _ *multisource.MultiSourceOptions, _ *jsonic.Jsonic) {
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
+    Processor: map[string]tabnasmultisource.Processor{
+        "yaml": func(res *tabnasmultisource.Resolution, _ *tabnasmultisource.MultiSourceOptions, _ *tabnasjsonic.Jsonic) {
             res.Val = parseYAML(res.Src)
         },
     },
@@ -107,8 +107,8 @@ j := multisource.MakeJsonic(multisource.MultiSourceOptions{
 ### Use a different mark character
 
 ```go
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
     MarkChar: "$",
 })
 ```
@@ -116,8 +116,8 @@ j := multisource.MakeJsonic(multisource.MultiSourceOptions{
 ### Set a base path for relative references
 
 ```go
-j := multisource.MakeJsonic(multisource.MultiSourceOptions{
-    Resolver: multisource.MakeMemResolver(files),
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeMemResolver(files),
     Path:     "configs",
 })
 // @a.jsonic now resolves against "configs/a.jsonic"
@@ -168,10 +168,10 @@ Go module release version.
 ### `MakeJsonic`
 
 ```go
-func MakeJsonic(opts ...MultiSourceOptions) *jsonic.Jsonic
+func MakeJsonic(opts ...MultiSourceOptions) *tabnasjsonic.Jsonic
 ```
 
-Creates a `*jsonic.Jsonic` with the `MultiSource` plugin installed and
+Creates a `*tabnasjsonic.Jsonic` with the `MultiSource` plugin installed and
 sensible defaults applied.
 
 ### `Parse`
@@ -222,5 +222,5 @@ type Resolution struct {
 
 type Resolver func(spec PathSpec, opts *MultiSourceOptions) Resolution
 
-type Processor func(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
+type Processor func(res *Resolution, opts *MultiSourceOptions, j *tabnasjsonic.Jsonic)
 ```
