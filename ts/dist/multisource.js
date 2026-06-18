@@ -176,6 +176,15 @@ const MultiSource = (tn, popts) => {
                                 c: (r) => 1 === r.d && 1 === r.n[name + '_top'],
                                 p: 'pair',
                                 b: 1,
+                                // Allocate the implicit top-level map node here (the core no
+                                // longer auto-allocates; @tabnas/json's @object$ only runs for
+                                // `{`). Without this the pushed `pair` is seeded with an
+                                // undefined node, so the builtin pair-close (pairval) throws
+                                // when a pair follows a leading `@` directive (`@a.jsonic b:2`).
+                                // The directive action's map-merge then writes into this same
+                                // shared node.
+                                a: '@object$',
+                                k: { object$: { implicit: true } },
                             }],
                         close: [{
                                 s: [OPEN],
