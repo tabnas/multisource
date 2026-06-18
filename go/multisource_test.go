@@ -1,6 +1,6 @@
 /* Copyright (c) 2025 Richard Rodger, MIT License */
 
-package multisource
+package tabnasmultisource
 
 import (
 	"reflect"
