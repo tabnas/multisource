@@ -1,7 +1,7 @@
 # multisource
 
 Load partial values from multiple sources (files, packages, memory) into a
-single [Jsonic](https://jsonic.senecajs.org) parse result.
+single [Tabnas](https://github.com/tabnas/jsonic) parse result.
 
 
 [![npm version](https://img.shields.io/npm/v/@tabnas/multisource.svg)](https://npmjs.com/package/@tabnas/multisource)
