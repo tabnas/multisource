@@ -1,6 +1,6 @@
 {
   "name": "@tabnas/multisource",
-  "version": "2.7.0",
+  "version": "0.2.0",
   "description": "",
   "main": "dist/multisource.js",
   "type": "commonjs",
@@ -54,10 +54,10 @@
     "typescript": "6.0.3"
   },
   "peerDependencies": {
-    "@tabnas/directive": "file:../../directive/ts",
-    "@tabnas/jsonic": "file:../../jsonic/ts",
-    "@tabnas/parser": ">=2",
-    "@tabnas/path": "file:../../path/ts"
+    "@tabnas/directive": "^0.2.0",
+    "@tabnas/jsonic": "^0.2.0",
+    "@tabnas/parser": "^0.2.0",
+    "@tabnas/path": "^0.2.0"
   },
   "engines": {
     "node": ">=24"
