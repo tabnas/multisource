@@ -241,7 +241,7 @@ func TestCustomProcessor(t *testing.T) {
 		"data.csv": "a,b,c",
 	}
 
-	csvProc := func(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic) {
+	csvProc := func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
 		parts := make([]any, 0)
 		for _, s := range splitCSV(res.Src) {
 			parts = append(parts, s)

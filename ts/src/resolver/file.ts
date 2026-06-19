@@ -38,13 +38,24 @@ export function makeFileResolver(
     const fs = ctx.meta?.fs || SystemFs
     const foundSpec = pathfinder ? pathfinder(spec) : spec
 
-    const ps = resolvePathSpec(popts, ctx, foundSpec, resolvefolder)
+    // An injected fs (ctx.meta.fs, e.g. memfs) is keyed by POSIX absolute
+    // paths. Use POSIX path semantics for it so Windows' win32 rules don't
+    // mangle paths (e.g. turning `//./main.jsonic` into the device path
+    // `\\.\main.jsonic`). The real filesystem keeps native semantics.
+    //
+    // NOTE: decide from whether an fs was explicitly injected, not from
+    // object identity of the fs. resolvePathSpec lives in another module with
+    // its own `import * as Fs` binding, so the fs it forwards to resolvefolder
+    // is never `=== SystemFs` even on the real filesystem.
+    const P = null != ctx.meta?.fs ? Path.posix : Path
+
+    const ps = resolvePathSpec(popts, ctx, foundSpec, makeResolveFolder(P))
     let src = undefined
 
     let search: string[] = []
 
     if (null != ps.full) {
-      ps.full = Path.resolve(ps.full)
+      ps.full = P.resolve(ps.full)
 
       search.push(ps.full)
 
@@ -59,8 +70,8 @@ export function makeFileResolver(
           let base = ps.base
           let last
           for (let i = 0; i < 7; i++) { // Heuristically check 7 levels of folders
-            potentials.push(Path.resolve(base, 'node_modules', ps.path))
-            base = Path.dirname(base)
+            potentials.push(P.resolve(base, 'node_modules', ps.path))
+            base = P.dirname(base)
             if (last === base) break
             last = base
           }
@@ -69,7 +80,7 @@ export function makeFileResolver(
         if (NONE === ps.kind) {
           potentials.push(...
             buildPotentials(ps, popts, (...s) =>
-              Path.resolve(s.reduce((a, p) => Path.join(a, p)))))
+              P.resolve(s.reduce((a, p) => P.join(a, p)))))
         }
 
         search.push(...potentials)
@@ -96,20 +107,24 @@ export function makeFileResolver(
   }
 }
 
-function resolvefolder(path: string, fs: FST) {
-  if ('string' !== typeof path) {
-    return path
+// Build a resolvefolder bound to a path module (POSIX for an injected fs,
+// native for the real filesystem). See note in FileResolver.
+function makeResolveFolder(P: typeof Path) {
+  return function resolvefolder(path: string, fs: FST) {
+    if ('string' !== typeof path) {
+      return path
+    }
+
+    let folder = path
+    let pathstats = fs.statSync(path)
+
+    if (pathstats.isFile()) {
+      let pathdesc = P.parse(path)
+      folder = pathdesc.dir
+    }
+
+    return folder
   }
-
-  let folder = path
-  let pathstats = fs.statSync(path)
-
-  if (pathstats.isFile()) {
-    let pathdesc = Path.parse(path)
-    folder = pathdesc.dir
-  }
-
-  return folder
 }
 
 function load(path: string, fs: FST) {

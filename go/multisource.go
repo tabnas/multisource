@@ -4,6 +4,7 @@ package tabnasmultisource
 
 import (
 	"encoding/json"
+	"io/fs"
 	"path"
 	"strings"
 	"sync"
@@ -21,6 +22,17 @@ type MultiSourceOptions struct {
 	MarkChar    string
 	Processor   map[string]Processor
 	ImplicitExt []string
+
+	// FS is an optional filesystem for the file and pkg resolvers to read
+	// from. When nil, the OS filesystem is used. Supplying an in-memory
+	// implementation (for example testing/fstest.MapFS) makes resolution
+	// hermetic. A per-parse override may also be passed as ctx.Meta["fs"],
+	// mirroring the TypeScript ctx.meta.fs injection point.
+	//
+	// Note: an io/fs.FS uses relative, slash-separated paths (see fs.ValidPath),
+	// so when FS is set the base Path and references resolve relative to the
+	// FS root rather than as absolute OS paths.
+	FS fs.FS
 }
 
 // PathSpec represents a normalized path to a source.
@@ -41,22 +53,32 @@ type Resolution struct {
 	Search []string // List of searched paths.
 }
 
-// Resolver finds source content for a given path spec.
-type Resolver func(spec PathSpec, opts *MultiSourceOptions) Resolution
+// Resolver finds source content for a given path spec. The ctx carries the
+// parse metadata (ctx.Meta); resolvers may read ctx.Meta["fs"] for a per-parse
+// filesystem override. Mirrors the TypeScript Resolver, which receives the
+// parse Context.
+type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution
 
 // Processor converts resolved source content into a value.
-type Processor func(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
+//
+// The ctx carries the parse metadata for this load (ctx.Meta), including the
+// multisource entry whose "path" is the full path of the source being
+// processed. Processors that re-parse source (see JsonicProcessor) must thread
+// ctx.Meta through so that nested relative references resolve against this
+// source's own directory. This mirrors the TypeScript Processor, which
+// receives the parse Context.
+type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
 
 // NONE represents an unknown or missing extension.
 const NONE = ""
 
 // DefaultProcessor returns the raw source string as the value.
-func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic) {
+func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
 	res.Val = res.Src
 }
 
 // JSONProcessor parses JSON source content.
-func JSONProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic) {
+func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
 	if res.Src == "" {
 		res.Val = nil
 		return
@@ -70,12 +92,22 @@ func JSONProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic) 
 }
 
 // JsonicProcessor parses source content using jsonic.
-func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic) {
+//
+// It threads ctx.Meta (which records this source's full path under the
+// multisource entry) into the nested parse via ParseMeta, so that relative
+// references inside res.Src resolve against this source's own directory rather
+// than the top-level base path. Mirrors the canonical TypeScript jsonic
+// processor, which calls jsonic(res.src, ctx.meta).
+func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
 	if res.Src == "" {
 		res.Val = nil
 		return
 	}
-	val, err := j.Parse(res.Src)
+	var meta map[string]any
+	if ctx != nil {
+		meta = ctx.Meta
+	}
+	val, err := j.ParseMeta(res.Src, meta)
 	if err != nil {
 		res.Val = res.Src
 		return
@@ -83,9 +115,10 @@ func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic
 	res.Val = val
 }
 
-// MakeMemResolver creates a resolver that looks up paths in a map.
+// MakeMemResolver creates a resolver that looks up paths in a map. It reads
+// from its own in-memory map and ignores ctx / opts.FS.
 func MakeMemResolver(files map[string]string) Resolver {
-	return func(spec PathSpec, opts *MultiSourceOptions) Resolution {
+	return func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution {
 		res := Resolution{
 			PathSpec: spec,
 			Found:    false,
@@ -243,13 +276,29 @@ func buildPotentials(fullpath string, implicitExt []string) []string {
 		return nil
 	}
 	potentials := []string{fullpath}
-	ext := path.Ext(fullpath)
-	if ext == "" {
+
+	// Determine the final path segment in a separator-agnostic way: the
+	// in-memory resolver keys on forward slashes, while the file/pkg resolvers
+	// pass OS-native paths (e.g. Windows backslashes from filepath.Abs).
+	base := fullpath
+	if i := strings.LastIndexAny(fullpath, `/\`); i >= 0 {
+		base = fullpath[i+1:]
+	}
+
+	if path.Ext(base) == "" {
+		// Implicit extensions.
 		for _, ie := range implicitExt {
 			potentials = append(potentials, fullpath+ie)
 		}
+		// Folder index file.
 		for _, ie := range implicitExt {
 			potentials = append(potentials, fullpath+"/index"+ie)
+		}
+		// Folder index file including the folder name, e.g. foo/index.foo.jsonic.
+		if base != "" && base != "." {
+			for _, ie := range implicitExt {
+				potentials = append(potentials, fullpath+"/index."+base+ie)
+			}
 		}
 	}
 	return potentials
