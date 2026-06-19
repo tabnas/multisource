@@ -4,6 +4,7 @@ package tabnasmultisource
 
 import (
 	"fmt"
+	"strings"
 
 	directive "github.com/tabnas/directive/go"
 	jsonic "github.com/tabnas/jsonic/go"
@@ -54,7 +55,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				}
 			}
 
-			res := resolveSource(pathStr, opts, j)
+			res := resolveSource(pathStr, opts, ctx, j)
 
 			from := ""
 			if rule.Parent != nil && rule.Parent != jsonic.NoRule {
@@ -148,16 +149,104 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 }
 
 // resolveSource resolves a multisource path and returns the processed value.
-func resolveSource(pathStr string, opts *MultiSourceOptions, j *jsonic.Jsonic) any {
-	spec := ResolvePathSpec(pathStr, opts.Path)
-	res := opts.Resolver(spec, opts)
+//
+// Relative references resolve against the directory of the *current* source.
+// For a top-level parse that is opts.Path; for a reference loaded from inside
+// another source it is that source's own directory. The current source's full
+// path is threaded through ctx.Meta["multisource"]["path"], mirroring the
+// canonical TypeScript @jsonic/multisource (ctx.meta.multisource.path). This
+// makes nested loads (a -> b -> c) resolve each relative reference against the
+// source that contains it, at any nesting depth, without mutating the shared
+// options. Sibling loads are unaffected because the parent context is copied,
+// not modified.
+func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) any {
+	base := opts.Path
+	if parent := metaSourcePath(ctx); parent != "" {
+		base = sourceDir(parent)
+	}
+
+	spec := ResolvePathSpec(pathStr, base)
+	res := opts.Resolver(spec, opts, ctx)
 
 	if !res.Found {
 		return nil
 	}
 
+	// Process in a child context whose meta records this source's full path, so
+	// any relative references inside res.Src resolve against this source's
+	// directory. The parent context (and its meta) are left unmodified.
+	childCtx := *ctx
+	childCtx.Meta = childMeta(ctx.Meta, &res)
+
 	proc := getProcessor(res.Kind, opts.Processor)
-	proc(&res, opts, j)
+	proc(&res, opts, &childCtx, j)
 
 	return res.Val
+}
+
+// metaSourcePath returns the full path of the source currently being parsed,
+// as threaded through ctx.Meta["multisource"]["path"]. It is empty for a
+// top-level parse (no enclosing source).
+func metaSourcePath(ctx *jsonic.Context) string {
+	if ctx == nil || ctx.Meta == nil {
+		return ""
+	}
+	ms, ok := ctx.Meta["multisource"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	p, _ := ms["path"].(string)
+	return p
+}
+
+// sourceDir returns the directory portion of a source path, used as the base
+// for relative references found inside that source. A path with no separator
+// (an in-memory resolver key such as "a.jsonic") yields "", so bare nested
+// references resolve plainly — matching the TypeScript mem resolver. A path
+// that contains separators yields everything up to the last one (its
+// containing directory), matching the TypeScript file/pkg resolver for a
+// loaded file.
+func sourceDir(p string) string {
+	i := strings.LastIndexAny(p, `/\`)
+	if i < 0 {
+		return ""
+	}
+	if i == 0 {
+		return p[:1] // filesystem root: keep the separator
+	}
+	return p[:i]
+}
+
+// childMeta returns a copy of the parent parse meta with the multisource entry
+// updated to record path (the full path of the source about to be processed)
+// and parents (the chain of enclosing source paths). The parent map is not
+// mutated. Mirrors the meta construction in the TypeScript plugin action.
+func childMeta(parent map[string]any, res *Resolution) map[string]any {
+	child := make(map[string]any, len(parent)+1)
+	for k, v := range parent {
+		child[k] = v
+	}
+
+	var prevMS map[string]any
+	if m, ok := parent["multisource"].(map[string]any); ok {
+		prevMS = m
+	}
+
+	var parents []string
+	if ps, ok := prevMS["parents"].([]string); ok {
+		parents = append(parents, ps...)
+	}
+	if prev, ok := prevMS["path"].(string); ok && prev != "" {
+		parents = append(parents, prev)
+	}
+
+	ms := make(map[string]any, len(prevMS)+2)
+	for k, v := range prevMS {
+		ms[k] = v
+	}
+	ms["path"] = res.Full
+	ms["parents"] = parents
+
+	child["multisource"] = ms
+	return child
 }

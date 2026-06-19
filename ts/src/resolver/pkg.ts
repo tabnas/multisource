@@ -49,6 +49,30 @@ export function makePkgResolver(options: {
     let src = undefined
     let search: string[] = []
 
+    // A relative reference (./x, ../x) inside a source loaded from a package is
+    // not a package name: resolve it against the containing source's directory
+    // via ps.full, exactly as the file resolver does (this also works over an
+    // injected fs). Bare package references fall through to the require /
+    // node_modules resolution below.
+    if (null != ps.path && isRelativeRef(ps.path) && null != ps.full) {
+      let full = Path.resolve(ps.full)
+      let potentials = [full]
+      if (NONE === ps.kind) {
+        potentials.push(...buildPotentials({ ...ps, full }, popts,
+          (...s) => Path.resolve(s.reduce((a, p) => Path.join(a, p)))))
+      }
+      for (let path of potentials) {
+        search.push(path)
+        src = load(path, fs)
+        if (null != src) {
+          ps.full = path
+          ps.kind = (path.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+          break
+        }
+      }
+      return { ...ps, src, found: null != src, search }
+    }
+
     if (null != ps.path) {
       try {
         ps.full = useRequire.resolve(ps.path, requireOptions)
@@ -140,6 +164,15 @@ export function makePkgResolver(options: {
   }
 }
 
+
+// isRelativeRef reports whether ref is an explicit relative reference (./x or
+// ../x). Such a reference is resolved against the containing source's directory
+// (via ps.full) rather than treated as a node_modules package name.
+function isRelativeRef(ref: string): boolean {
+  return ref === '.' || ref === '..' ||
+    ref.startsWith('./') || ref.startsWith('../') ||
+    ref.startsWith('.\\') || ref.startsWith('..\\')
+}
 
 function resolvefolder(path: string, fs: FST) {
   if ('string' !== typeof path) {

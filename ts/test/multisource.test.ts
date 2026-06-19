@@ -764,4 +764,72 @@ describe('multisource', () => {
     assert.deepEqual(filemap, {})
   })
 
+
+  // --- Ported from @jsonic/multisource (upstream resolver bug fixes) ---
+
+  test('nested-relative-dirs', () => {
+    // A relative reference *inside* a loaded file resolves against that file's
+    // own directory (main -> sub/child -> sub/grand), across directories.
+    const { fs } = memfs({
+      'main.jsonic': '{top:1, child:@"./sub/child.jsonic"}',
+      sub: {
+        'child.jsonic': '{mid:2, grand:@"./grand.jsonic"}',
+        'grand.jsonic': '{v:99}',
+      },
+    })
+
+    const j = new Tabnas().use(jsonic).use(MultiSource, { resolver: makeFileResolver() })
+
+    assert.deepEqual(
+      j.parse('@"./main.jsonic"', { fs, multisource: { path: '/' } }),
+      { top: 1, child: { mid: 2, grand: { v: 99 } } }
+    )
+  })
+
+
+  test('nested-relative-sibling-dirs', () => {
+    // Two references loaded from the same parent each resolve their own
+    // relative reference against their own directory. Both children load
+    // "./inner.jsonic" but from different directories, so they pick up
+    // different files — proving the base is tracked per-source and a sibling
+    // load is unaffected.
+    const { fs } = memfs({
+      'main.jsonic': '{a:@"./aa/a.jsonic", b:@"./bb/b.jsonic"}',
+      aa: {
+        'a.jsonic': '{x:@"./inner.jsonic"}',
+        'inner.jsonic': '{n:11}',
+      },
+      bb: {
+        'b.jsonic': '{y:@"./inner.jsonic"}',
+        'inner.jsonic': '{n:22}',
+      },
+    })
+
+    const j = new Tabnas().use(jsonic).use(MultiSource, { resolver: makeFileResolver() })
+
+    assert.deepEqual(
+      j.parse('@"./main.jsonic"', { fs, multisource: { path: '/' } }),
+      { a: { x: { n: 11 } }, b: { y: { n: 22 } } }
+    )
+  })
+
+
+  test('pkg-relative-ref', () => {
+    const Path = require('node:path')
+    const j1 = new Tabnas().use(jsonic).use(MultiSource, {
+      resolver: makePkgResolver({ require })
+    })
+
+    // A relative reference (./x) is resolved against the containing source's
+    // directory, not treated as a node_modules package name. The reference
+    // inside the loaded file (rel/outer.jsonic -> ./inner.jsonic) likewise
+    // resolves against that file's own directory. The base is seeded via a real
+    // anchor file so resolvefolder() yields the test directory.
+    const anchor = Path.resolve(__dirname, '../test/t01.jsonic')
+    assert.deepEqual(
+      j1.parse('@"./rel/outer.jsonic"', { multisource: { path: anchor } }),
+      { o: 1, inner: { v: 7 } }
+    )
+  })
+
 })
