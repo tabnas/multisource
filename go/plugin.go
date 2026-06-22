@@ -105,6 +105,18 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 					"@pk-pos": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
 						return r.N["pk"] > 0
 					}),
+					// val-open back-track condition. Mirrors the canonical
+					// TypeScript `0 < r.n.pk && 'pair' != r.parent.name`: only
+					// back-track the @ up the path dive when we are inside a
+					// dive AND the @ is NOT already the value of a pair. In a
+					// colon-chain (`a: b: @"f"`) the value-position val rule has
+					// pk > 0 but its parent IS the pair for that key, so this
+					// stays false and the import resolves nested under the key
+					// rather than unwinding to depth 0 (which drops it to null).
+					"@pk-pos-val": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+						return r.N["pk"] > 0 &&
+							(r.Parent == nil || r.Parent == jsonic.NoRule || r.Parent.Name != "pair")
+					}),
 					"@d-zero": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
 						return r.D == 0
 					}),
@@ -115,7 +127,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				Rule: map[string]*jsonic.GrammarRuleSpec{
 					"val": {
 						Open: []*jsonic.GrammarAltSpec{
-							{S: openToken, C: "@pk-pos", B: 1},
+							{S: openToken, C: "@pk-pos-val", B: 1},
 							{S: openToken, C: "@d-zero", P: "map", B: 1, N: map[string]int{topCounter: 1}},
 						},
 					},
