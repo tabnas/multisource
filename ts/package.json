@@ -45,12 +45,12 @@
     "./processor/jsonic": "./dist/processor/jsonic.js"
   },
   "devDependencies": {
-    "@tabnas/debug": "file:../../debug/ts",
-    "@tabnas/directive": "file:../../directive/ts",
-    "@tabnas/jsonic": "file:../../jsonic/ts",
-    "@tabnas/parser": "file:../../parser/ts",
-    "@tabnas/path": "file:../../path/ts",
-    "@tabnas/railroad": "file:../../railroad/ts",
+    "@tabnas/debug": "*",
+    "@tabnas/directive": "*",
+    "@tabnas/jsonic": "*",
+    "@tabnas/parser": "*",
+    "@tabnas/path": "*",
+    "@tabnas/railroad": "*",
     "@types/node": "^25.6.0",
     "jsonic-multisource-pkg-test": "0.0.1",
     "memfs": "4.57.2",
