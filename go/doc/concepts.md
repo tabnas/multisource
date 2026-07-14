@@ -49,9 +49,10 @@ Every reference goes through three independent stages.
 which returns a `Resolution` with the loaded `Src`, the detected `Kind`, the
 `Full` path, and whether it was `Found`.
 
-The Go port ships one resolver, `MakeMemResolver`, over a `path → content`
-map. Because a resolver is just a function, you can supply your own for files,
-HTTP, databases, or test stubs.
+The Go port ships three resolvers: `MakeMemResolver` (a `path → content` map),
+`MakeFileResolver` (disk or an injected `io/fs.FS`, with optional preload), and
+`MakePkgResolver` (`node_modules` lookup). Because a resolver is just a
+function, you can supply your own for HTTP, databases, or test stubs.
 
 ### 2. Process
 
@@ -112,35 +113,51 @@ These are why `@a.jsonic b:2`, `b:2 @a.jsonic`, and `{x: @a.jsonic}` all parse.
 - **Merging is in-place and deep by default**, making layered overrides
   natural while keeping the parent map reference stable.
 
-## Differences from the TS version
+## Differences from the TypeScript implementation
 
 The TypeScript implementation (`@tabnas/multisource`) is canonical; this Go
 package tracks it but differs in scope and idiom:
 
-- **Resolvers.** Go ships only `MakeMemResolver`. The TS package additionally
-  provides `makeFileResolver` (disk / virtual `fs`, `node_modules` walking,
-  preload) and `makePkgResolver` (Node module resolution). There is no Go
-  equivalent of those, nor of `preloadFiles` / `PreloadOptions`.
-- **Processors.** Go has `DefaultProcessor`, `JSONProcessor`, and
-  `JsonicProcessor` (covering `json`, `jsonic`, `jsc`). There is no `js`
-  processor — Go cannot `require` a JavaScript module — so the TS `js` kind and
-  `makeJavaScriptProcessor` have no counterpart. Default `ImplicitExt` is
-  `[.jsonic, .jsc, .json]` (no `.js`), versus TS's `[.jsonic, .jsc, .json, .js]`.
+- **No `.js` sources (JavaScript processor).** The TS package registers
+  `makeJavaScriptProcessor` for the `js` kind: a `.js` reference is loaded by
+  *executing* the JavaScript module (`require(res.full)`) and taking its
+  exports. Go has no JavaScript runtime, so executing a `.js` source is
+  impossible; the `js` kind and `makeJavaScriptProcessor` have no Go
+  counterpart, and a `@foo.js` reference falls through to the default raw-string
+  processor. Accordingly, the default `ImplicitExt` is
+  `[.jsonic, .jsc, .json]` (no `.js`), versus TS's
+  `[.jsonic, .jsc, .json, .js]`. Note `.jsc` is *jsonic* content and is fully
+  supported (it uses `JsonicProcessor`, as in TS). If you need executable
+  configuration in Go, generate a `.json`/`.jsonic` file or register a custom
+  `Processor` backed by an embedded interpreter.
 - **Processor aliasing.** TS lets a processor entry be a *string* that aliases
   another kind (`{ conf: 'jsonic' }`); Go's `Processor` map values are always
   functions, so register the function directly.
-- **Function signatures.** Go's `Resolver` takes `(spec, opts)` and `Processor`
-  takes `(res, opts, j)`. The TS equivalents also receive `rule`, `ctx`, and
-  `tn` (the engine). Go's narrower signatures reflect the smaller resolver set.
+- **Resolvers.** Go ships `MakeMemResolver`, `MakeFileResolver` (disk or
+  injected `io/fs.FS`, preload map, pathfinder), and `MakePkgResolver`
+  (`node_modules` walking, package.json `main`). The pkg resolver implements
+  the portable subset of Node's resolution — it does not implement conditional
+  `exports` or `require.resolve` semantics.
+- **Preload.** `PreloadFiles` / `PreloadOptions` mirror the TS folder-scanning
+  preload: scan folders (optionally recursive) for matching extensions into a
+  `path -> content` map, fed to `FileResolverOptions.Preload`. As in TS, the
+  `MultiSourceOptions.Preload` field is a declarative record; the plugin does
+  not consume it directly.
+- **Function signatures.** Go's `Resolver` takes `(spec, opts, ctx)` and
+  `Processor` takes `(res, opts, ctx, j)`. The TS equivalents additionally
+  receive `rule` and take `tn` (the engine) as the last parameter.
 - **Error handling.** A not-found reference in Go yields `nil` for that value
   (no error raised). The TS plugin raises a `multisource_not_found` error with
   searched paths and a source location.
-- **Dependency tracking.** TS records a `DependencyMap` (and exposes `TOP`,
-  `Dependency`, `MultiSourceMeta`) when you pass a `deps` object in parse meta.
-  The Go port does not track dependencies.
-- **Parse meta.** TS threads rich meta (`multisource.path`, `deps`, `parents`,
-  `fs`, `fileName`) through `parse(src, meta)`. The Go `Parse`/`Jsonic.Parse`
-  take only the source string; base path and options are set on the instance.
+- **Dependency tracking.** Both record a `DependencyMap` when you pass an empty
+  `deps` map in the `multisource` parse meta (Go: a `DependencyMap` under
+  `ctx.Meta["multisource"]["deps"]`, via `ParseMeta`). Go's `TOP` is a string
+  sentinel constant (with a NUL byte, so it cannot collide with a path) rather
+  than a JS `Symbol`, and `Dependency.Wen` is Unix milliseconds (`int64`)
+  rather than a JS `Date.now()` number.
+- **Parse meta.** TS threads meta through `parse(src, meta)`; Go uses
+  `Jsonic.ParseMeta(src, map[string]any)`. The same keys are honoured
+  (`multisource.path`, `multisource.deps`, `multisource.parents`, `fs`).
 - **Number type.** Both produce numbers, but Go materialises them as `float64`
   in `map[string]any`, the jsonic Go default.
 - **Performance.** Go's no-options `Parse` caches a single default parser

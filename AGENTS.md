@@ -77,11 +77,16 @@ behaviour:
    files under `ts/test/`.
 4. Run both suites and confirm green.
 
-Do not let the Go behaviour drift from TS. Note the two ports are not yet
-at feature parity — TS has the richer surface (three resolvers, the
-dependency-tree builder, preload, path-diving integration); the Go port
-has the `mem` resolver and the core directive. Document any gap here and
-in the relevant `doc/*.md` rather than silently diverging.
+Do not let the Go behaviour drift from TS. The Go port now covers the TS
+surface — three resolvers (`mem`/`file`/`pkg`), the dependency-tree
+builder (`DependencyMap`/`Dependency`/`TOP` via `ParseMeta`), folder
+preload (`PreloadFiles`/`PreloadOptions`), and path-diving integration —
+with one deliberate gap: the `js` kind (`makeJavaScriptProcessor`
+executes a JavaScript module via `require`; Go has no JS runtime, so
+`.js` sources are unsupported and `.js` is not a Go implicit extension).
+See `go/doc/concepts.md` "Differences from the TypeScript
+implementation". Document any new gap here and in the relevant
+`doc/*.md` rather than silently diverging.
 
 ## How resolution works (the moving parts)
 

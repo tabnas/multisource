@@ -15,6 +15,15 @@ import (
 // Version is the Go module release version.
 const Version = "0.3.1"
 
+// PreloadOptions configures folder-scanning preload: read all matching files
+// from the specified folders into memory before parsing starts, avoiding
+// per-file I/O during parse. Mirrors the TypeScript PreloadOptions.
+type PreloadOptions struct {
+	Folders   []string // Folders to scan (non-recursive by default).
+	Ext       []string // File extensions to load (default: ".jsonic", ".json").
+	Recursive bool     // Recurse into subfolders (default: false).
+}
+
 // MultiSourceOptions configures the multisource parser.
 type MultiSourceOptions struct {
 	Resolver    Resolver
@@ -22,6 +31,12 @@ type MultiSourceOptions struct {
 	MarkChar    string
 	Processor   map[string]Processor
 	ImplicitExt []string
+
+	// Preload configures folder-scanning preload, mirroring the TypeScript
+	// top-level `preload` option. As in TypeScript, the plugin does not
+	// consume it directly: pass it to PreloadFiles and feed the resulting
+	// map to FileResolverOptions.Preload.
+	Preload *PreloadOptions
 
 	// FS is an optional filesystem for the file and pkg resolvers to read
 	// from. When nil, the OS filesystem is used. Supplying an in-memory
@@ -71,6 +86,44 @@ type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Conte
 
 // NONE represents an unknown or missing extension.
 const NONE = ""
+
+// TOP marks the top of the dependency tree: it is the DependencyMap target key
+// used for sources referenced directly by the top-level parse (no enclosing
+// source). It is the Go counterpart of the TypeScript exported TOP symbol; the
+// leading NUL byte guarantees it can never collide with a real source path.
+const TOP = "\x00TOP"
+
+// Dependency records that target Tar pulled in source Src during a parse.
+// Mirrors the TypeScript Dependency type (tar/src/wen).
+type Dependency struct {
+	Tar string `json:"tar"` // Target that depends on source (Src); TOP at the top level.
+	Src string `json:"src"` // Source that target (Tar) depends on.
+	Wen int64  `json:"wen"` // Time of resolution (Unix milliseconds).
+}
+
+// DependencyMap is a flattened dependency tree (assumes each element is a
+// unique full path), keyed by target full path, then source full path.
+//
+// To collect dependencies, pass an empty DependencyMap under the "deps" key of
+// the "multisource" parse meta entry; the plugin fills it as sources resolve
+// other sources, mirroring the TypeScript `deps` meta:
+//
+//	deps := tabnasmultisource.DependencyMap{}
+//	j.ParseMeta(`@a.jsonic`, map[string]any{
+//	    "multisource": map[string]any{"deps": deps},
+//	})
+//	// deps[tabnasmultisource.TOP] now maps each top-level source to a
+//	// Dependency record; nested sources are keyed by their parent's full path.
+type DependencyMap map[string]map[string]Dependency
+
+// PluginMeta describes the plugin.
+type PluginMeta struct {
+	Name string
+}
+
+// Meta is the MultiSource plugin metadata, mirroring the TypeScript exported
+// `meta` object.
+var Meta = PluginMeta{Name: "MultiSource"}
 
 // DefaultProcessor returns the raw source string as the value.
 func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
@@ -165,6 +218,77 @@ func ResolvePathSpec(specPath string, base string) PathSpec {
 		Base: base,
 		Abs:  abs,
 	}
+}
+
+// PreloadFiles scans the folders named in opts and returns a flat map of full
+// resolved path -> file content for every file matching one of the configured
+// extensions (default ".jsonic", ".json"; a missing leading dot is added).
+// Folders are scanned non-recursively unless opts.Recursive is set; folders
+// that do not exist (and files that cannot be read) are silently skipped.
+// Mirrors the TypeScript exported preloadFiles.
+//
+// By default files are read from the OS filesystem and keyed by absolute path,
+// matching the keys used by MakeFileResolver. Pass an io/fs.FS to read from it
+// instead, with relative slash-separated keys (the convention used when
+// resolving against an injected filesystem).
+//
+// The result feeds FileResolverOptions.Preload:
+//
+//	filemap := tabnasmultisource.PreloadFiles(tabnasmultisource.PreloadOptions{
+//	    Folders: []string{dir}, Recursive: true,
+//	})
+//	resolver := tabnasmultisource.MakeFileResolver(
+//	    tabnasmultisource.FileResolverOptions{Preload: filemap})
+func PreloadFiles(opts PreloadOptions, fsys ...fs.FS) map[string]string {
+	var v vfs = osVFS{}
+	if len(fsys) > 0 && fsys[0] != nil {
+		v = ioVFS{fsys[0]}
+	}
+
+	rawExts := opts.Ext
+	if len(rawExts) == 0 {
+		rawExts = []string{".jsonic", ".json"}
+	}
+	exts := make([]string, len(rawExts))
+	for i, ext := range rawExts {
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		exts[i] = ext
+	}
+
+	filemap := map[string]string{}
+
+	var scan func(folder string)
+	scan = func(folder string) {
+		entries, ok := v.readDir(folder)
+		if !ok {
+			return
+		}
+		for _, e := range entries {
+			full := v.join(folder, e.Name())
+			if e.IsDir() {
+				if opts.Recursive {
+					scan(full)
+				}
+				continue
+			}
+			for _, ext := range exts {
+				if strings.HasSuffix(e.Name(), ext) {
+					if src, ok := v.readFile(full); ok {
+						filemap[full] = src
+					}
+					break
+				}
+			}
+		}
+	}
+
+	for _, folder := range opts.Folders {
+		scan(v.canon(folder))
+	}
+
+	return filemap
 }
 
 // defaultParser is a lazily-created instance reused by the no-options Parse

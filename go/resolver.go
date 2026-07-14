@@ -224,6 +224,8 @@ func resolveInPkgDir(v vfs, nodeModules, ref string, exts []string, search *[]st
 type vfs interface {
 	// readFile reads the file at a canonical path; ok reports existence.
 	readFile(p string) (string, bool)
+	// readDir lists the entries of a directory; ok reports readability.
+	readDir(p string) ([]fs.DirEntry, bool)
 	// join joins path elements in this filesystem's convention.
 	join(parts ...string) string
 	// dir returns the parent directory of p.
@@ -250,8 +252,15 @@ func resolveVFS(opts *MultiSourceOptions, ctx *jsonic.Context) vfs {
 type osVFS struct{}
 
 func (osVFS) readFile(p string) (string, bool) { return loadFile(p) }
-func (osVFS) join(parts ...string) string      { return filepath.Join(parts...) }
-func (osVFS) dir(p string) string              { return filepath.Dir(p) }
+func (osVFS) readDir(p string) ([]fs.DirEntry, bool) {
+	entries, err := os.ReadDir(p)
+	if err != nil {
+		return nil, false
+	}
+	return entries, true
+}
+func (osVFS) join(parts ...string) string { return filepath.Join(parts...) }
+func (osVFS) dir(p string) string         { return filepath.Dir(p) }
 func (osVFS) canon(p string) string {
 	if abs, err := filepath.Abs(p); err == nil {
 		return abs
@@ -272,6 +281,17 @@ func (v ioVFS) readFile(p string) (string, bool) {
 		return "", false
 	}
 	return string(b), true
+}
+func (v ioVFS) readDir(p string) ([]fs.DirEntry, bool) {
+	name := fsClean(p)
+	if !fs.ValidPath(name) {
+		return nil, false
+	}
+	entries, err := fs.ReadDir(v.fsys, name)
+	if err != nil {
+		return nil, false
+	}
+	return entries, true
 }
 func (ioVFS) join(parts ...string) string { return fsClean(path.Join(parts...)) }
 func (ioVFS) dir(p string) string         { return path.Dir(fsClean(p)) }

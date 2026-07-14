@@ -54,7 +54,8 @@ import (
 )
 
 csvProc := func(res *tabnasmultisource.Resolution,
-    opts *tabnasmultisource.MultiSourceOptions, j *jsonic.Jsonic) {
+    opts *tabnasmultisource.MultiSourceOptions,
+    ctx *jsonic.Context, j *jsonic.Jsonic) {
     parts := make([]any, 0)
     for _, s := range strings.Split(res.Src, ",") {
         parts = append(parts, strings.TrimSpace(s))
@@ -143,13 +144,15 @@ j.Parse(`{config: @config.json}`)
 
 ## Supply a custom resolver
 
-A `Resolver` is a function `func(spec PathSpec, opts *MultiSourceOptions) Resolution`.
+A `Resolver` is a function
+`func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution`.
 It must set `Found` and, when found, `Src` and `Full`. Use `ResolvePathSpec`
 to do the shared path normalisation:
 
 ```go
 httpResolver := func(spec tabnasmultisource.PathSpec,
-    opts *tabnasmultisource.MultiSourceOptions) tabnasmultisource.Resolution {
+    opts *tabnasmultisource.MultiSourceOptions,
+    ctx *jsonic.Context) tabnasmultisource.Resolution {
     body := httpGet(spec.Full) // your own fetch
     return tabnasmultisource.Resolution{
         PathSpec: spec,
@@ -178,6 +181,54 @@ j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
 out, err := j.Parse(`{x: @missing}`)
 // err == nil
 // out == map[string]any{"x": nil}
+```
+
+## Track the dependency tree
+
+Sources can reference other sources, forming a tree. Pass an empty
+`DependencyMap` under the `deps` key of the `multisource` parse meta and the
+plugin fills it with a flat map of `target → { source → Dependency }`,
+recording which source pulled in which:
+
+```go
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeFileResolver(),
+    Path:     baseDir,
+})
+
+deps := tabnasmultisource.DependencyMap{}
+out, err := j.ParseMeta(`@"app.jsonic"`, map[string]any{
+    "multisource": map[string]any{"deps": deps},
+})
+// deps now maps each source's full path to the sources it pulled in.
+// Sources referenced by the top-level parse are keyed by
+// tabnasmultisource.TOP.
+```
+
+This is how you build a watch list or invalidate caches when an upstream file
+changes.
+
+## Preload files to avoid per-reference disk I/O
+
+For large trees, scan folders into memory once with `PreloadFiles` and hand
+the map to the file resolver. The resolver checks preloaded content before
+touching disk:
+
+```go
+filemap := tabnasmultisource.PreloadFiles(tabnasmultisource.PreloadOptions{
+    Folders:   []string{configDir},
+    Ext:       []string{".jsonic", ".json"},
+    Recursive: true,
+})
+
+j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
+    Resolver: tabnasmultisource.MakeFileResolver(
+        tabnasmultisource.FileResolverOptions{Preload: filemap}),
+    Path: configDir,
+})
+
+out, err := j.Parse(`@"app.jsonic"`)
+// served from memory, falls back to disk if missing
 ```
 
 ## Use the path plugin alongside multisource

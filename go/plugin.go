@@ -5,6 +5,7 @@ package tabnasmultisource
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	directive "github.com/tabnas/directive/go"
 	jsonic "github.com/tabnas/jsonic/go"
@@ -184,6 +185,33 @@ func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context
 		return nil
 	}
 
+	// Build the dependency tree branch, mirroring the TypeScript action: when
+	// the parse meta carries a DependencyMap under multisource.deps, record
+	// that the enclosing source (or TOP for the top-level parse) pulled in
+	// this resolution. The map travels by reference through the copied child
+	// meta, so nested loads keep filling the same tree.
+	if deps := metaDeps(ctx); deps != nil {
+		tar := metaSourcePath(ctx)
+		if tar == "" {
+			tar = TOP
+		}
+		fullpath := res.Full
+		if fullpath == "" {
+			fullpath = res.Path
+		}
+		if fullpath == "" {
+			fullpath = "no-path"
+		}
+		if deps[tar] == nil {
+			deps[tar] = map[string]Dependency{}
+		}
+		deps[tar][fullpath] = Dependency{
+			Tar: tar,
+			Src: fullpath,
+			Wen: time.Now().UnixMilli(),
+		}
+	}
+
 	// Process in a child context whose meta records this source's full path, so
 	// any relative references inside res.Src resolve against this source's
 	// directory. The parent context (and its meta) are left unmodified.
@@ -209,6 +237,21 @@ func metaSourcePath(ctx *jsonic.Context) string {
 	}
 	p, _ := ms["path"].(string)
 	return p
+}
+
+// metaDeps returns the DependencyMap threaded through the parse meta as
+// ctx.Meta["multisource"]["deps"], or nil when the caller did not ask for
+// dependency tracking. Mirrors the TypeScript ctx.meta.multisource.deps.
+func metaDeps(ctx *jsonic.Context) DependencyMap {
+	if ctx == nil || ctx.Meta == nil {
+		return nil
+	}
+	ms, ok := ctx.Meta["multisource"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	deps, _ := ms["deps"].(DependencyMap)
+	return deps
 }
 
 // sourceDir returns the directory portion of a source path, used as the base

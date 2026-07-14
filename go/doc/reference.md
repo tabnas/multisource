@@ -16,12 +16,19 @@ import (
 )
 ```
 
-## Constants
+## Constants and package metadata
 
 ```go
-const Version = "0.1.4"   // Go module release version
+const Version = "0.3.1"   // Go module release version
 const NONE = ""           // the unknown/empty kind (default-processor key)
+const TOP = "\x00TOP"     // dependency-tree top marker (never a valid path)
+
+var Meta = PluginMeta{Name: "MultiSource"}  // plugin metadata (TS: `meta`)
 ```
+
+`TOP` is the `DependencyMap` target key used for sources referenced directly
+by the top-level parse. It is the Go counterpart of the TypeScript `TOP`
+symbol; the NUL byte guarantees it cannot collide with a real source path.
 
 ## Constructors
 
@@ -63,6 +70,8 @@ type MultiSourceOptions struct {
     MarkChar    string
     Processor   map[string]Processor
     ImplicitExt []string
+    Preload     *PreloadOptions
+    FS          fs.FS
 }
 ```
 
@@ -73,6 +82,8 @@ type MultiSourceOptions struct {
 | `MarkChar` | `string` | `"@"` | Single character that opens a reference. |
 | `Processor` | `map[string]Processor` | see below | Per-kind source transformers. |
 | `ImplicitExt` | `[]string` | `[".jsonic", ".jsc", ".json"]` | Extensions tried when a reference has none. Normalised to begin with `.`. |
+| `Preload` | `*PreloadOptions` | `nil` | Folder-scanning preload configuration. As in TS, not consumed by the plugin directly — pass it to `PreloadFiles` and feed the result to `FileResolverOptions.Preload`. |
+| `FS` | `fs.FS` | `nil` (OS) | Filesystem for the file/pkg resolvers. A per-parse override may be passed as `ctx.Meta["fs"]`. |
 
 ### Default processors
 
@@ -88,8 +99,11 @@ map[string]Processor{
 ## Resolvers
 
 ```go
-type Resolver func(spec PathSpec, opts *MultiSourceOptions) Resolution
+type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution
 ```
+
+The `ctx` carries the parse metadata (`ctx.Meta`); resolvers may read
+`ctx.Meta["fs"]` for a per-parse filesystem override.
 
 ### `MakeMemResolver`
 
@@ -101,14 +115,64 @@ Resolves references against an in-memory `path → content` map. Tries implicit
 extensions and `index` files when the reference has no extension (via
 `buildPotentials`), and records the searched paths in `Resolution.Search`.
 
+### `MakeFileResolver`
+
+```go
+type FileResolverOptions struct {
+    PathFinder func(spec string) string // transform the raw reference path
+    Preload    map[string]string        // full path -> content, checked before disk
+}
+
+func MakeFileResolver(opts ...FileResolverOptions) Resolver
+```
+
+Loads sources from the filesystem (OS by default; `MultiSourceOptions.FS` or
+`ctx.Meta["fs"]` when injected). The `Preload` map — typically built by
+`PreloadFiles` — is consulted before any file I/O.
+
+### `MakePkgResolver`
+
+```go
+type PkgResolverOptions struct {
+    Paths []string // directories whose node_modules are searched (walked upwards)
+}
+
+func MakePkgResolver(opts ...PkgResolverOptions) Resolver
+```
+
+Resolves references inside `node_modules` folders, honouring a package's
+`package.json` `"main"` and implicit extensions/index files. Implements the
+portable subset of Node resolution (no conditional `exports`).
+
+## Preload
+
+```go
+type PreloadOptions struct {
+    Folders   []string // folders to scan (non-recursive by default)
+    Ext       []string // extensions to load (default: ".jsonic", ".json")
+    Recursive bool     // recurse into subfolders (default: false)
+}
+
+func PreloadFiles(opts PreloadOptions, fsys ...fs.FS) map[string]string
+```
+
+Scans the folders for files matching the extensions (a missing leading `.` is
+added) and returns a flat `full path → content` map, mirroring the TypeScript
+`preloadFiles`. Missing folders and unreadable files are silently skipped. By
+default files are read from the OS and keyed by absolute path (matching
+`MakeFileResolver` lookups); pass an `io/fs.FS` to read from it instead, with
+relative slash-separated keys. Feed the result to
+`FileResolverOptions.Preload` to avoid per-file I/O during parse.
+
 ## Processors
 
 ```go
-type Processor func(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
+type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
 ```
 
-A processor reads `res.Src` and assigns `res.Val`. The `j` argument is the
-engine, available for re-parsing.
+A processor reads `res.Src` and assigns `res.Val`. The `ctx` carries the parse
+metadata for this load (`ctx.Meta`); the `j` argument is the engine, available
+for re-parsing.
 
 | Function | Kind | Behaviour |
 | --- | --- | --- |
@@ -117,10 +181,14 @@ engine, available for re-parsing.
 | `JsonicProcessor` | `jsonic`, `jsc` | Re-parses `res.Src` through the engine; falls back to the raw string on error; `nil` on empty source. |
 
 ```go
-func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
-func JSONProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
-func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, j *jsonic.Jsonic)
+func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
+func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
+func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
 ```
+
+There is no `js` processor: Go cannot execute a JavaScript module, so `.js`
+sources are unsupported (see the
+[differences section](concepts.md#differences-from-the-typescript-implementation)).
 
 `getProcessor` selects `Processor[kind]`, falling back to `Processor[NONE]`,
 then `DefaultProcessor`.
@@ -154,6 +222,42 @@ type Resolution struct {
     Found  bool     // true if a source was found
     Search []string // paths the resolver tried
 }
+
+type Dependency struct {
+    Tar string `json:"tar"` // target that depends on Src; TOP at the top level
+    Src string `json:"src"` // source that Tar depends on
+    Wen int64  `json:"wen"` // time of resolution (Unix milliseconds)
+}
+
+// Flattened dependency tree: target full path -> source full path -> record.
+type DependencyMap map[string]map[string]Dependency
+
+type PluginMeta struct {
+    Name string
+}
+```
+
+## Dependency tracking and parse meta
+
+Pass parse metadata with `Jsonic.ParseMeta(src, meta)`. The plugin honours a
+`"multisource"` entry (a `map[string]any`), mirroring the TypeScript
+`MultiSourceMeta`:
+
+| Key | Type | Purpose |
+| --- | --- | --- |
+| `path` | `string` | Base path for this parse run (full path of the enclosing source for nested loads). |
+| `parents` | `[]string` | Enclosing source paths, maintained by the plugin. |
+| `deps` | `DependencyMap` | Pass an empty map to be filled with the dependency tree. |
+
+A per-parse filesystem override may be passed as `meta["fs"]` (`fs.FS`).
+
+```go
+deps := tabnasmultisource.DependencyMap{}
+j.ParseMeta(`@"app.jsonic"`, map[string]any{
+    "multisource": map[string]any{"deps": deps},
+})
+// deps now maps each source's full path (or TOP for the top level) to the
+// sources it pulled in, with resolution timestamps.
 ```
 
 ## Reference syntax

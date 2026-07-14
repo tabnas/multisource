@@ -43,6 +43,22 @@ Four-quadrant [Diátaxis](https://diataxis.fr) docs:
   the TypeScript version.
 
 
+## Differences from the TypeScript implementation
+
+The TypeScript package is canonical and the Go port tracks it, with one
+deliberate gap: **`.js` sources are not supported in Go**. In TypeScript,
+`makeJavaScriptProcessor` loads a `.js` reference by executing the JavaScript
+module (`require(...)`) and splicing in its exports — Go has no JavaScript
+runtime, so this cannot be ported. A `@foo.js` reference in Go falls through to
+the default raw-string processor, and `.js` is not among the default implicit
+extensions. (`.jsc` files are jsonic content, not JavaScript, and are fully
+supported.) Use `.jsonic`/`.jsc`/`.json` sources, or register a custom
+`Processor` if you embed your own interpreter.
+
+The full list of behavioural and idiom differences is in
+[Concepts — Differences from the TypeScript implementation](doc/concepts.md#differences-from-the-typescript-implementation).
+
+
 ## Grammar diagram
 
 The grammar as a railroad/syntax diagram (shared with the TS implementation):
