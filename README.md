@@ -1,5 +1,12 @@
 # @tabnas/multisource
 
+<!-- tabnas-badges -->
+[![npm](https://tabnas.github.io/status/badges/multisource-npm.svg)](https://www.npmjs.com/package/@tabnas/multisource)
+[![CI](https://github.com/tabnas/multisource/actions/workflows/ci.yml/badge.svg)](https://github.com/tabnas/multisource/actions/workflows/ci.yml)
+[![go](https://tabnas.github.io/status/badges/multisource-go.svg)](https://pkg.go.dev/github.com/tabnas/multisource/go)
+[![tabnas standard](https://tabnas.github.io/status/badges/multisource-standard.svg)](https://tabnas.github.io/status/)
+<!-- /tabnas-badges -->
+
 A Jsonic / tabnas plugin that merges multiple sources into a single parse
 result. A marked path (`@a.jsonic`) is resolved, parsed, and spliced in place —
 so one document can compose many.
