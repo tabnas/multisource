@@ -1,6 +1,6 @@
 {
   "name": "@tabnas/multisource",
-  "version": "0.2.0",
+  "version": "0.3.2",
   "description": "",
   "main": "dist/multisource.js",
   "type": "commonjs",
@@ -16,7 +16,8 @@
   "author": "Richard Rodger, http://richardrodger.com",
   "repository": {
     "type": "git",
-    "url": "git://github.com/tabnas/multisource.git"
+    "url": "git://github.com/tabnas/multisource.git",
+    "directory": "ts"
   },
   "scripts": {
     "test": "node --enable-source-maps --test \"dist-test/*.test.js\"",

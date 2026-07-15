@@ -13,7 +13,7 @@ import (
 )
 
 // Version is the Go module release version.
-const Version = "0.3.1"
+const Version = "0.3.2"
 
 // PreloadOptions configures folder-scanning preload: read all matching files
 // from the specified folders into memory before parsing starts, avoiding
