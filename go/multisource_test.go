@@ -8,13 +8,53 @@ import (
 	"testing"
 
 	jsonic "github.com/tabnas/jsonic/go"
+	tabnas "github.com/tabnas/parser/go"
 	path "github.com/tabnas/path/go"
 )
 
-// assert is a test helper that checks deep equality.
+// plainify recursively rewrites the parser's insertion-ordered *OrderedMap
+// object node into a plain map[string]any (and walks lists), so a parse result
+// can be compared value-for-value against a plain map[string]any expectation
+// with reflect.DeepEqual. The alphabetical->source key-order change is a
+// representation detail these value/structure assertions do not care about.
+func plainify(v any) any {
+	switch m := v.(type) {
+	case *tabnas.OrderedMap:
+		out := make(map[string]any, len(m.Vals))
+		for _, k := range m.Keys {
+			out[k] = plainify(m.Vals[k])
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			out[k] = plainify(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(m))
+		for i, val := range m {
+			out[i] = plainify(val)
+		}
+		return out
+	}
+	return v
+}
+
+// asMap unwraps a parse result into its underlying key->value map, accepting
+// either the parser's *OrderedMap object node or a plain map[string]any. Tests
+// that index a single key off the result (m["x"]) do not need key order.
+func asMap(v any) map[string]any {
+	m, _ := tabnas.AsStringMap(v)
+	return m
+}
+
+// assert is a test helper that checks deep equality, treating the parser's
+// ordered *OrderedMap object node and a plain map[string]any as equal when
+// their keys/values match (order-agnostic).
 func assert(t *testing.T, name string, got, want any) {
 	t.Helper()
-	if !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(plainify(got), plainify(want)) {
 		t.Errorf("%s:\n  got:  %#v\n  want: %#v", name, got, want)
 	}
 }
@@ -35,21 +75,21 @@ func TestHappy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "jsonic-ref", m["a"], map[string]any{"a": float64(1)})
 
 	r, err = j.Parse(`{c: @c.txt}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ = r.(map[string]any)
+	m = asMap(r)
 	assert(t, "txt-ref", m["c"], "CCC")
 
 	r, err = j.Parse(`{d: @d.json}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ = r.(map[string]any)
+	m = asMap(r)
 	assert(t, "json-ref", m["d"], map[string]any{"d": float64(3)})
 }
 
@@ -68,21 +108,21 @@ func TestImplicitExt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "implicit-jsonic", m["x"], map[string]any{"a": float64(1)})
 
 	r, err = j.Parse(`{x: @b}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ = r.(map[string]any)
+	m = asMap(r)
 	assert(t, "implicit-jsc", m["x"], map[string]any{"b": float64(2)})
 
 	r, err = j.Parse(`{x: @c}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ = r.(map[string]any)
+	m = asMap(r)
 	assert(t, "implicit-json", m["x"], map[string]any{"c": float64(3)})
 }
 
@@ -100,7 +140,7 @@ func TestMultipleSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "multi-a", m["x"], map[string]any{"a": float64(1)})
 	assert(t, "multi-b", m["y"], map[string]any{"b": float64(2)})
 }
@@ -116,7 +156,7 @@ func TestNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "not-found", m["x"], nil)
 }
 
@@ -134,7 +174,7 @@ func TestBasePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "base-path", m["x"], map[string]any{"a": float64(1)})
 }
 
@@ -151,8 +191,8 @@ func TestJSONSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
-	cfg, _ := m["config"].(map[string]any)
+	m := asMap(r)
+	cfg := asMap(m["config"])
 	assert(t, "json-host", cfg["host"], "localhost")
 	assert(t, "json-port", cfg["port"], float64(8080))
 }
@@ -170,7 +210,7 @@ func TestIndexFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "index-file", m["mod"], map[string]any{"x": float64(1)})
 }
 
@@ -187,7 +227,7 @@ func TestMixedValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "ref-val", m["x"], map[string]any{"a": float64(1)})
 	assert(t, "num-val", m["y"], float64(2))
 	assert(t, "str-val", m["z"], "hello")
@@ -263,7 +303,7 @@ func TestCustomProcessor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "csv", m["data"], []any{"a", "b", "c"})
 }
 
@@ -287,7 +327,7 @@ func TestParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "parse", m["x"], map[string]any{"a": float64(1)})
 }
 
@@ -305,7 +345,7 @@ func TestAbsolutePath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "abs-path", m["cfg"], map[string]any{"env": "prod"})
 }
 
@@ -324,7 +364,7 @@ func TestPathPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "path-a", m["x"], map[string]any{"a": float64(1)})
 	assert(t, "path-b", m["y"], map[string]any{"b": float64(2)})
 }
@@ -342,7 +382,7 @@ func TestMergeIntoMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "merge-x", m["x"], float64(2))
 	assert(t, "merge-a", m["a"], float64(1))
 }

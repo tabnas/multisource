@@ -44,7 +44,7 @@ func TestFileResolverFS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.src, err)
 		}
-		m, _ := r.(map[string]any)
+		m := asMap(r)
 		assert(t, c.src, m["x"], c.want)
 	}
 }
@@ -99,7 +99,7 @@ func TestPkgResolverFS(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", c.src, err)
 		}
-		m, _ := r.(map[string]any)
+		m := asMap(r)
 		assert(t, c.src, m["c"], c.want)
 	}
 }
@@ -122,7 +122,7 @@ func TestPkgResolverFSWalkUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-fs-walkup", m["c"], map[string]any{"zed": float64(99)})
 }
 
@@ -147,7 +147,7 @@ func TestPkgResolverRelativeInPkg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-relative-internal", m["r"], map[string]any{
 		"a": float64(1),
 		"b": map[string]any{"x": float64(10)},

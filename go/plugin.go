@@ -9,6 +9,7 @@ import (
 
 	directive "github.com/tabnas/directive/go"
 	jsonic "github.com/tabnas/jsonic/go"
+	tabnas "github.com/tabnas/parser/go"
 )
 
 // MultiSource is a jsonic plugin that adds multisource reference support.
@@ -50,9 +51,15 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			switch v := spec.(type) {
 			case string:
 				pathStr = v
-			case map[string]any:
-				if p, ok := v["path"]; ok {
-					pathStr = fmt.Sprintf("%v", p)
+			default:
+				// The directive spec may be an object form ({path: ...}).
+				// A parsed object is now an insertion-ordered *OrderedMap;
+				// AsStringMap unwraps either that or a plain map for value
+				// access (order is irrelevant when reading a single key).
+				if m, ok := tabnas.AsStringMap(v); ok {
+					if p, ok := m["path"]; ok {
+						pathStr = fmt.Sprintf("%v", p)
+					}
 				}
 			}
 
@@ -77,19 +84,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			if from == "pair" {
 				if rule.Parent.Parent != nil && rule.Parent.Parent != jsonic.NoRule {
 					gp := rule.Parent.Parent
-					if parent, ok := gp.Node.(map[string]any); ok {
-						if m, ok := res.(map[string]any); ok {
-							for k, v := range m {
-								if ctx.Cfg.MapMerge != nil {
-									parent[k] = ctx.Cfg.MapMerge(parent[k], v, rule, ctx)
-								} else if ctx.Cfg.MapExtend {
-									parent[k] = jsonic.Deep(parent[k], v)
-								} else {
-									parent[k] = v
-								}
-							}
-						}
-					}
+					mergeIntoParent(gp.Node, res, rule, ctx)
 				}
 			} else {
 				rule.Node = res
@@ -159,6 +154,88 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 
 	directive.Apply(j, dopts)
 	return nil
+}
+
+// mergeIntoParent deep-merges the loaded value res into the grandparent map
+// node in place, mirroring the TypeScript `deep(gp.node, res.val)`. It handles
+// the parser's insertion-ordered *OrderedMap object node (now the default) as
+// well as a plain map[string]any, so nested values survive, the grandparent
+// reference stays stable (following pairs write into the same node), and the
+// loaded source's key order is preserved.
+//
+// Non-object nodes/values (either side not object-shaped) are a no-op, matching
+// the prior behaviour where the type assertion simply failed.
+func mergeIntoParent(gpNode, res any, rule *jsonic.Rule, ctx *jsonic.Context) {
+	set, ok := parentSetter(gpNode)
+	if !ok {
+		return
+	}
+	m, ok := tabnas.AsStringMap(res)
+	if !ok {
+		return
+	}
+	// Iterate in the loaded source's key order when res carries one, so keys
+	// injected into the grandparent map follow the loaded file's order.
+	for _, k := range orderedKeys(res, m) {
+		v := m[k]
+		existing := set.get(k)
+		if ctx.Cfg.MapMerge != nil {
+			set.put(k, ctx.Cfg.MapMerge(existing, v, rule, ctx))
+		} else if ctx.Cfg.MapExtend {
+			set.put(k, jsonic.Deep(existing, v))
+		} else {
+			set.put(k, v)
+		}
+	}
+}
+
+// parentGetSet reads and writes keys on an object node (an *OrderedMap or a
+// plain map[string]any) while preserving whichever representation the node uses.
+type parentGetSet struct {
+	om *jsonic.OrderedMap
+	pm map[string]any
+}
+
+func (p parentGetSet) get(k string) any {
+	if p.om != nil {
+		v, _ := p.om.Get(k)
+		return v
+	}
+	return p.pm[k]
+}
+
+func (p parentGetSet) put(k string, v any) {
+	if p.om != nil {
+		p.om.Set(k, v)
+		return
+	}
+	p.pm[k] = v
+}
+
+// parentSetter returns a getter/setter over the grandparent object node,
+// reporting whether the node was object-shaped.
+func parentSetter(node any) (parentGetSet, bool) {
+	switch n := node.(type) {
+	case *jsonic.OrderedMap:
+		return parentGetSet{om: n}, true
+	case map[string]any:
+		return parentGetSet{pm: n}, true
+	}
+	return parentGetSet{}, false
+}
+
+// orderedKeys returns the keys of the loaded value in source order when it is an
+// *OrderedMap, else the plain map's keys (Go map-iteration order — order is
+// irrelevant for a plain map, which has none recorded).
+func orderedKeys(res any, m map[string]any) []string {
+	if om, ok := res.(*jsonic.OrderedMap); ok {
+		return om.Keys
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // resolveSource resolves a multisource path and returns the processed value.
