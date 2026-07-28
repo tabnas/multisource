@@ -32,7 +32,7 @@ func TestFileResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-ref", m["x"], map[string]any{"a": float64(1)})
 }
 
@@ -49,7 +49,7 @@ func TestFileResolverImplicitExt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-implicit", m["x"], map[string]any{"b": float64(2)})
 }
 
@@ -66,7 +66,7 @@ func TestFileResolverIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-index", m["x"], map[string]any{"m": float64(3)})
 }
 
@@ -83,7 +83,7 @@ func TestFileResolverFolderIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-folder-index", m["x"], map[string]any{"h": float64(7)})
 }
 
@@ -103,7 +103,7 @@ func TestFileResolverPreload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-preload", m["x"], map[string]any{"p": float64(4)})
 }
 
@@ -122,7 +122,7 @@ func TestFileResolverPathFinder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-pathfinder", m["x"], map[string]any{"a": float64(1)})
 }
 
@@ -137,7 +137,7 @@ func TestFileResolverNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "file-not-found", m["x"], nil)
 }
 
@@ -153,7 +153,7 @@ func TestPkgResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-subpath", m["c"], map[string]any{"zed": float64(99)})
 }
 
@@ -170,7 +170,7 @@ func TestPkgResolverMain(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-main", m["z"], map[string]any{"z": float64(11)})
 }
 
@@ -186,7 +186,7 @@ func TestPkgResolverIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-index", m["i"], map[string]any{"i": float64(5)})
 }
 
@@ -207,7 +207,7 @@ func TestPkgResolverWalkUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-walkup", m["c"], map[string]any{"zed": float64(99)})
 }
 
@@ -221,6 +221,6 @@ func TestPkgResolverNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := r.(map[string]any)
+	m := asMap(r)
 	assert(t, "pkg-not-found", m["x"], nil)
 }
