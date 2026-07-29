@@ -219,6 +219,9 @@ func parentSetter(node any) (parentGetSet, bool) {
 	case *jsonic.OrderedMap:
 		return parentGetSet{om: n}, true
 	case map[string]any:
+		if n == nil { // a typed-nil map is not a usable merge target
+			return parentGetSet{}, false
+		}
 		return parentGetSet{pm: n}, true
 	}
 	return parentGetSet{}, false
