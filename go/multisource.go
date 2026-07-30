@@ -382,7 +382,33 @@ func getOpts(m map[string]any) *MultiSourceOptions {
 	if o, ok := m["_opts"].(*MultiSourceOptions); ok {
 		return o
 	}
-	return defaultOpts()
+	// Also honour the plain option keys, so `j.Use(MultiSource,
+	// map[string]any{"resolver": r})` configures the plugin the way
+	// `tn.use(MultiSource, {resolver})` does in TypeScript. Previously
+	// anything but the internal `_opts` key was silently ignored, leaving
+	// the caller with the default (empty) resolver.
+	o := defaultOpts()
+	if v, ok := m["resolver"].(Resolver); ok {
+		o.Resolver = v
+	}
+	if v, ok := m["path"].(string); ok {
+		o.Path = v
+	}
+	if v, ok := m["markChar"].(string); ok && v != "" {
+		o.MarkChar = v
+	}
+	if v, ok := m["fs"].(fs.FS); ok {
+		o.FS = v
+	}
+	if v, ok := m["processor"].(map[string]Processor); ok {
+		for kind, proc := range v {
+			o.Processor[kind] = proc
+		}
+	}
+	if v, ok := m["implicitExt"].([]string); ok {
+		o.ImplicitExt = v
+	}
+	return o
 }
 
 func getProcessor(kind string, procmap map[string]Processor) Processor {

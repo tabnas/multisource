@@ -5,6 +5,7 @@ package tabnasmultisource
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -133,12 +134,15 @@ func TestFileResolverNotFound(t *testing.T) {
 		Path:     dir,
 	})
 
+	// An unresolvable reference is an error, not a silent nil — the same
+	// contract as the TypeScript plugin (multisource_not_found).
 	r, err := j.Parse(`{x: @missing.jsonic}`)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatalf("expected multisource_not_found, got %#v", r)
 	}
-	m := asMap(r)
-	assert(t, "file-not-found", m["x"], nil)
+	if !strings.Contains(err.Error(), "multisource_not_found") {
+		t.Errorf("error = %q, want multisource_not_found", err.Error())
+	}
 }
 
 func TestPkgResolver(t *testing.T) {
@@ -217,10 +221,13 @@ func TestPkgResolverNotFound(t *testing.T) {
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{dir}}),
 	})
 
+	// An unresolvable reference is an error, not a silent nil — the same
+	// contract as the TypeScript plugin (multisource_not_found).
 	r, err := j.Parse(`{x: @"nopkg/zed.jsonic"}`)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatalf("expected multisource_not_found, got %#v", r)
 	}
-	m := asMap(r)
-	assert(t, "pkg-not-found", m["x"], nil)
+	if !strings.Contains(err.Error(), "multisource_not_found") {
+		t.Errorf("error = %q, want multisource_not_found", err.Error())
+	}
 }

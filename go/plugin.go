@@ -30,6 +30,17 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 	}
 	cfg.EnderChars[rune(markChar[0])] = true
 
+	// Message templates for the not-found error, matching the TS plugin's
+	// tn.options({error, hint}) registration.
+	j.SetOptions(jsonic.Options{
+		Error: map[string]string{
+			"multisource_not_found": "source not found: {path}",
+		},
+		Hint: map[string]string{
+			"multisource_not_found": "The source path {path} was not found.\n\nSearch paths:\n{searchstr}",
+		},
+	})
+
 	// Define a directive that can load content from multiple sources.
 	dopts := directive.DirectiveOptions{
 		Name: "multisource",
@@ -63,7 +74,32 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				}
 			}
 
-			res := resolveSource(pathStr, opts, ctx, j)
+			res, missing := resolveSource(pathStr, opts, ctx, j)
+			if missing != nil {
+				// Mirror the TS action: a reference that cannot be resolved
+				// halts the parse with multisource_not_found, reporting the
+				// paths that were searched.
+				search := missing.Search
+				if len(search) == 0 && missing.Full != "" {
+					search = []string{missing.Full}
+				}
+				details := map[string]any{
+					"path":      missing.Path,
+					"full":      missing.Full,
+					"searchstr": strings.Join(search, "\n"),
+				}
+				if details["path"] == "" {
+					details["path"] = pathStr
+				}
+				tkn := ctx.T0
+				if rule.Parent != nil && rule.Parent != jsonic.NoRule && rule.Parent.O0 != nil {
+					tkn = rule.Parent.O0
+				}
+				if tkn != nil {
+					ctx.ParseErr = tkn.Bad("multisource_not_found", details)
+				}
+				return
+			}
 
 			from := ""
 			if rule.Parent != nil && rule.Parent != jsonic.NoRule {
@@ -252,7 +288,10 @@ func orderedKeys(res any, m map[string]any) []string {
 // source that contains it, at any nesting depth, without mutating the shared
 // options. Sibling loads are unaffected because the parent context is copied,
 // not modified.
-func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) any {
+// The bool reports whether the source was found; an unresolvable reference
+// is an error (multisource_not_found), not a silent nil, matching the TS
+// action's `rule.parent?.o0.bad('multisource_not_found', ...)`.
+func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) (any, *Resolution) {
 	base := opts.Path
 	if parent := metaSourcePath(ctx); parent != "" {
 		base = sourceDir(parent)
@@ -262,7 +301,7 @@ func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context
 	res := opts.Resolver(spec, opts, ctx)
 
 	if !res.Found {
-		return nil
+		return nil, &res
 	}
 
 	// Build the dependency tree branch, mirroring the TypeScript action: when
@@ -301,7 +340,7 @@ func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context
 	proc := getProcessor(res.Kind, opts.Processor)
 	proc(&res, opts, &childCtx, j)
 
-	return res.Val
+	return res.Val, nil
 }
 
 // metaSourcePath returns the full path of the source currently being parsed,

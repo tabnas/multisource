@@ -1,0 +1,13 @@
+input	expected	opts
+{x:@a.jsonic}	{"x":{"a":1}}	{"mem":{"a.jsonic":"a:1"}}
+x:@a.jsonic	{"x":{"a":1}}	{"mem":{"a.jsonic":"a:1"}}
+{x:@a.jsonic y:1}	{"x":{"a":1},"y":1}	{"mem":{"a.jsonic":"a:1"}}
+x:@a.jsonic y:1	{"x":{"a":1},"y":1}	{"mem":{"a.jsonic":"a:1"}}
+{z:2 x:@a.jsonic y:1}	{"z":2,"x":{"a":1},"y":1}	{"mem":{"a.jsonic":"a:1"}}
+z:2 x:@a.jsonic y:1	{"z":2,"x":{"a":1},"y":1}	{"mem":{"a.jsonic":"a:1"}}
+{x:y:@a.jsonic}	{"x":{"y":{"a":1}}}	{"mem":{"a.jsonic":"a:1"}}
+x:y:@a.jsonic	{"x":{"y":{"a":1}}}	{"mem":{"a.jsonic":"a:1"}}
+{x:y:2 @a.jsonic}	{"x":{"y":2},"a":1}	{"mem":{"a.jsonic":"a:1"}}
+x:y:2 @a.jsonic	{"x":{"y":2},"a":1}	{"mem":{"a.jsonic":"a:1"}}
+x:2 @a.jsonic	{"x":2,"a":1}	{"mem":{"a.jsonic":"a:1"}}
+x:@{path:"a.jsonic"}	{"x":{"a":1}}	{"mem":{"a.jsonic":"a:1"}}

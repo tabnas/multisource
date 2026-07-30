@@ -1,0 +1,2 @@
+input	expected	opts
+@a	{"a":1,"b":{"b":2,"c":{"c":3}},"x":99}	{"mem":{"a.jsc":"a:1,b:@b.jsc,x:99","b.jsc":"b:2,c:@c","c/index.jsc":"c:3"}}

@@ -1,0 +1,2 @@
+input	expected	opts
+x:2 @a.jsonic	{"x":2,"a":1}	{"mem":{"a.jsonic":"a:1"},"options":{"map":{"extend":false}}}
