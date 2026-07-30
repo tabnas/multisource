@@ -70,11 +70,12 @@ behaviour:
 1. Change `ts/src/multisource.ts` (or the relevant resolver/processor)
    first.
 2. Port the same change to `go/plugin.go` / `go/multisource.go`.
-3. Mirror the new case across `ts/test/multisource.test.ts` and
-   `go/multisource_test.go` — the two suites should cover the same
-   ground. There are **no shared `.tsv` fixtures** in this repo; the
-   parity contract is the two test suites plus the small fixture source
-   files under `ts/test/`.
+3. Add the case to `test/spec/*.tsv` where it is expressible as
+   input → output — those shared fixtures are the parity contract and both
+   runtimes run them (see [`test/AGENTS.md`](test/AGENTS.md)). Cases that
+   need a real filesystem (the `file` / `pkg` / preload resolvers) cannot
+   live in a fixture: mirror those across `ts/test/multisource.test.ts` and
+   `go/multisource_test.go` instead.
 4. Run both suites and confirm green.
 
 Do not let the Go behaviour drift from TS. The Go port now covers the TS
