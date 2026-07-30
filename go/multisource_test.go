@@ -152,12 +152,15 @@ func TestNotFound(t *testing.T) {
 		Resolver: MakeMemResolver(files),
 	})
 
+	// An unresolvable reference is an error, not a silent nil — the same
+	// contract as the TypeScript plugin (multisource_not_found).
 	r, err := j.Parse(`{x: @missing}`)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatalf("expected multisource_not_found, got %#v", r)
 	}
-	m := asMap(r)
-	assert(t, "not-found", m["x"], nil)
+	if !strings.Contains(err.Error(), "multisource_not_found") {
+		t.Errorf("error = %q, want multisource_not_found", err.Error())
+	}
 }
 
 func TestBasePath(t *testing.T) {

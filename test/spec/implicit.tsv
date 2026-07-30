@@ -1,0 +1,23 @@
+input	expected	opts
+a:@a.jsonic,x:1	{"a":{"a":1},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+[@a.jsonic,{x:1}]	[{"a":1},{"x":1}]	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@a.jsonic	{"a":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+b:2 @a.jsonic	{"b":2,"a":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+b:2 @a.jsonic c:3	{"b":2,"a":1,"c":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@a.jsonic b:2	{"a":1,"b":2}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+y:@b.jsonic,x:1	{"y":{"a":{"b":1,"c":2}},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@b.jsonic	{"a":{"b":1,"c":2}}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+x:2 @b.jsonic	{"x":2,"a":{"b":1,"c":2}}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+x:2 @b.jsonic y:3	{"x":2,"a":{"b":1,"c":2},"y":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@b.jsonic y:2	{"a":{"b":1,"c":2},"y":2}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+a:{d:3} @b.jsonic	{"a":{"d":3,"b":1,"c":2}}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+a:{d:3} @b.jsonic y:2	{"a":{"d":3,"b":1,"c":2},"y":2}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+a:{d:3} @b.jsonic a:{d:4,f:5}	{"a":{"d":4,"b":1,"c":2,"f":5}}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@b.jsonic a:{d:4,f:5}	{"a":{"b":1,"c":2,"d":4,"f":5}}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+a:{d:3} @b.jsonic a:{d:4,f:5} z:1	{"a":{"d":4,"b":1,"c":2,"f":5},"z":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@b.jsonic a:{d:4,f:5} z:1	{"a":{"b":1,"c":2,"d":4,"f":5},"z":1}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@a.jsonic @d.jsonic	{"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+x:11 @a.jsonic @d.jsonic	{"x":11,"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@a.jsonic x:11 @d.jsonic	{"a":1,"x":11,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+x:{} @a.jsonic @d.jsonic	{"x":{},"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+x:y:{} @a.jsonic @d.jsonic	{"x":{"y":{}},"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}

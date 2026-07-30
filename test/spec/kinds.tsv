@@ -1,0 +1,9 @@
+input	expected	opts
+a:@a.jsonic,x:1	{"a":{"a":1},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+b:@b.jsc,x:1	{"b":{"b":2},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+c:@c.txt,x:1	{"c":"CCC","x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+d:@d.json,x:1	{"d":{"d":3},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+f:@f,x:1	{"f":{"f":5},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+g:@g,x:1	{"g":{"g":6},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+h:@h,x:1	{"h":{"h":7},"x":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}
+\n  x:a:@a.jsonic \n  x:b:@b.jsc \n  x:c:@c.txt \n  x:d:@d.json \n  y:1\n  	{"x":{"a":{"a":1},"b":{"b":2},"c":"CCC","d":{"d":3}},"y":1}	{"mem":{"a.jsonic":"a:1","b.jsc":"b:2","c.txt":"CCC","d.json":"{\"d\":3}","f.jsc":"f:5","g/index.jsc":"g:6","h/index.h.jsc":"h:7"}}

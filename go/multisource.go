@@ -66,6 +66,13 @@ type Resolution struct {
 	Val    any      // Processed value.
 	Found  bool     // True if source was found.
 	Search []string // List of searched paths.
+
+	// Err reports a failure while PROCESSING found source (for example a
+	// nested reference inside it that could not be resolved). The plugin
+	// propagates it so the parse fails, matching the TS processor, which lets
+	// a nested parse error escape rather than substituting the raw text.
+	// Leave nil on success. Not set for "not found" — that is Found=false.
+	Err error
 }
 
 // Resolver finds source content for a given path spec. The ctx carries the
@@ -162,7 +169,12 @@ func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Cont
 	}
 	val, err := j.ParseMeta(res.Src, meta)
 	if err != nil {
+		// Report it rather than silently yielding the raw source: a nested
+		// `@missing` inside a loaded source must fail the whole parse, as it
+		// does in TS. res.Val keeps the raw text for callers that inspect the
+		// resolution directly.
 		res.Val = res.Src
+		res.Err = err
 		return
 	}
 	res.Val = val
@@ -382,7 +394,73 @@ func getOpts(m map[string]any) *MultiSourceOptions {
 	if o, ok := m["_opts"].(*MultiSourceOptions); ok {
 		return o
 	}
-	return defaultOpts()
+	// Also honour the plain option keys, so `j.Use(MultiSource,
+	// map[string]any{"resolver": r})` configures the plugin the way
+	// `tn.use(MultiSource, {resolver})` does in TypeScript. Previously
+	// anything but the internal `_opts` key was silently ignored, leaving
+	// the caller with the default (empty) resolver.
+	o := defaultOpts()
+	if v, ok := m["resolver"].(Resolver); ok {
+		o.Resolver = v
+	}
+	if v, ok := m["path"].(string); ok {
+		o.Path = v
+	}
+	// `markchar` is the canonical name (it is what the TS plugin reads);
+	// `markChar` stays accepted as the Go-field-cased alias.
+	for _, k := range []string{"markchar", "markChar"} {
+		if v, ok := m[k].(string); ok && v != "" {
+			o.MarkChar = v
+			break
+		}
+	}
+	if v, ok := m["fs"].(fs.FS); ok {
+		o.FS = v
+	}
+	if v, ok := m["processor"].(map[string]Processor); ok {
+		for kind, proc := range v {
+			o.Processor[kind] = proc
+		}
+	}
+	// `implictExt` is the canonical name (TS spells it that way); accept the
+	// Go field spelling too. Values may be a []string or the []any a JSON
+	// options blob produces, and an undotted extension is normalised here —
+	// MakeJsonic does the same, and buildPotentials would otherwise search
+	// for `namefoo` instead of `name.foo`.
+	for _, k := range []string{"implictExt", "implicitExt"} {
+		exts := toExtList(m[k])
+		if exts == nil {
+			continue
+		}
+		for i, e := range exts {
+			if !strings.HasPrefix(e, ".") {
+				exts[i] = "." + e
+			}
+		}
+		o.ImplicitExt = exts
+		break
+	}
+	return o
+}
+
+// toExtList reads an extension list given as []string or as the []any a
+// decoded JSON options blob produces. Returns nil when absent or unusable.
+func toExtList(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		out := make([]string, len(x))
+		copy(out, x)
+		return out
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }
 
 func getProcessor(kind string, procmap map[string]Processor) Processor {
