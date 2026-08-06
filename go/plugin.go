@@ -36,9 +36,13 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 	j.SetOptions(jsonic.Options{
 		Error: map[string]string{
 			"multisource_not_found": "source not found: {path}",
+			"multisource_cycle":     "source includes itself: {path}",
 		},
 		Hint: map[string]string{
 			"multisource_not_found": "The source path {path} was not found.\n\nSearch paths:\n{searchstr}",
+			"multisource_cycle": "Including {path} here would loop forever:\n\n{loop}\n\n" +
+				"A source may be included from more than one place, but it cannot " +
+				"be an ancestor of itself.",
 		},
 	})
 
@@ -76,6 +80,20 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			}
 
 			res, missing, perr := resolveSource(pathStr, opts, ctx, j)
+			var ce *cycleError
+			if errors.As(perr, &ce) {
+				tkn := ctx.T0
+				if rule.Parent != nil && rule.Parent != jsonic.NoRule && rule.Parent.O0 != nil {
+					tkn = rule.Parent.O0
+				}
+				if tkn != nil {
+					ctx.ParseErr = tkn.Bad("multisource_cycle", map[string]any{
+						"path": ce.Path,
+						"loop": strings.Join(ce.Loop, " -> "),
+					})
+				}
+				return
+			}
 			if perr != nil {
 				// A source resolved but failed to parse — typically a nested
 				// `@missing` inside it. Re-raise the nested code (so a
@@ -298,6 +316,30 @@ func orderedKeys(res any, m map[string]any) []string {
 	return keys
 }
 
+// cycleError reports a source that would include itself. Carried out of
+// resolveSource so the call site can raise it with the full loop in the
+// details, mirroring the TS action's multisource_cycle.
+type cycleError struct {
+	Path string
+	Loop []string
+}
+
+func (e *cycleError) Error() string {
+	return "multisource cycle: " + strings.Join(e.Loop, " -> ")
+}
+
+// metaParents returns the chain of enclosing source paths recorded under
+// ctx.Meta["multisource"]["parents"].
+func metaParents(ctx *jsonic.Context) []string {
+	if ms, ok := ctx.Meta["multisource"].(map[string]any); ok {
+		if ps, ok := ms["parents"].([]string); ok {
+			return ps
+		}
+	}
+	return nil
+}
+
+
 // resolveSource resolves a multisource path and returns the processed value.
 //
 // Relative references resolve against the directory of the *current* source.
@@ -326,6 +368,31 @@ func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context
 
 	if !res.Found {
 		return nil, &res, nil
+	}
+
+	// Cycle check. Without it, a -> b -> a recurses until the stack
+	// overflows, with no source position and no indication of which files
+	// are at fault. Compare against the ancestor chain, so a file included
+	// twice from different branches is still fine — that is reuse, not a
+	// cycle. Mirrors the TS action.
+	{
+		full := res.Full
+		if full == "" {
+			full = res.Path
+		}
+		if full == "" {
+			full = "no-path"
+		}
+		parents := metaParents(ctx)
+		if cur := metaSourcePath(ctx); cur != "" {
+			parents = append(append([]string{}, parents...), cur)
+		}
+		for i, p := range parents {
+			if p == full {
+				loop := append(append([]string{}, parents[i:]...), full)
+				return nil, nil, &cycleError{Path: full, Loop: loop}
+			}
+		}
 	}
 
 	// Build the dependency tree branch, mirroring the TypeScript action: when
