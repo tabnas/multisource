@@ -113,12 +113,17 @@ const MultiSource: Plugin = (tn: Tabnas, popts: MultiSourceOptions) => {
   tn.options({
     error: {
       multisource_not_found: 'source not found: {path}',
+      multisource_cycle: 'source includes itself: {path}',
     },
     hint: {
       // TODO: use $details for more explanation in error message.
       // In particular to show resolved absolute path.
       multisource_not_found:
         'The source path {path} was not found.\n\nSearch paths:\n{searchstr}',
+      multisource_cycle:
+        'Including {path} here would loop forever:\n\n{loop}\n\n' +
+        'A source may be included from more than one place, but it cannot ' +
+        'be an ancestor of itself.',
     },
   })
 
@@ -154,9 +159,29 @@ const MultiSource: Plugin = (tn: Tabnas, popts: MultiSourceOptions) => {
 
       // Pass down any meta info.
       let msmeta: MultiSourceMeta = ctx.meta?.multisource || {}
-      let parents = msmeta.parents || []
+
+      // Copy rather than push into the inherited array: it is shared with
+      // every sibling include at this level, so mutating it made `parents`
+      // an accumulating visit-log rather than the ancestor chain — which
+      // would make the cycle check below fire on a diamond (two siblings
+      // both including one file), not just on a real loop.
+      let parents = [...(msmeta.parents || [])]
       if (null != msmeta.path) {
         parents.push(msmeta.path)
+      }
+
+      // Cycle check. Without it, a → b → a recurses until the stack
+      // overflows: a RangeError from somewhere deep in the engine, with
+      // no source position and no indication of which files are at
+      // fault. Compare against the ancestor chain, so a file included
+      // twice from different branches is still fine — that is reuse, not
+      // a cycle.
+      if (parents.includes(fullpath)) {
+        const loop = [...parents.slice(parents.indexOf(fullpath)), fullpath]
+        return rule.parent?.o0.bad('multisource_cycle', {
+          path: fullpath,
+          loop: loop.join(' -> '),
+        })
       }
 
       let meta: any = {

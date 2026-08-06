@@ -832,4 +832,71 @@ describe('multisource', () => {
     )
   })
 
+
+  test('cycle detection', () => {
+    // Without this a -> b -> a recursed until the stack overflowed: a
+    // RangeError from deep inside the engine, with no source position and
+    // no hint as to which files were at fault.
+    const mk = (files: Record<string, string>) =>
+      new Tabnas().use(jsonic).use(MultiSource, {
+        resolver: makeMemResolver(files),
+      })
+    const codeOf = (fn: () => any) => {
+      try { fn(); return undefined } catch (e: any) { return e.code }
+    }
+
+    // Direct, two-step and three-step loops are all caught.
+    assert.equal(
+      codeOf(() => mk({ 'a.jsonic': '@"a.jsonic"' }).parse('@"a.jsonic"')),
+      'multisource_cycle')
+    assert.equal(
+      codeOf(() => mk({
+        'a.jsonic': '@"b.jsonic"', 'b.jsonic': '@"a.jsonic"',
+      }).parse('@"a.jsonic"')),
+      'multisource_cycle')
+    assert.equal(
+      codeOf(() => mk({
+        'a.jsonic': '@"b.jsonic"',
+        'b.jsonic': '@"c.jsonic"',
+        'c.jsonic': '@"a.jsonic"',
+      }).parse('@"a.jsonic"')),
+      'multisource_cycle')
+
+    // The message names the loop, not just the file.
+    try {
+      mk({ 'a.jsonic': '@"b.jsonic"', 'b.jsonic': '@"a.jsonic"' })
+        .parse('@"a.jsonic"')
+      assert.fail('should throw')
+    } catch (e: any) {
+      assert.match(
+        e.message.replace(/\x1b\[[0-9;]*m/g, ''),
+        /a\.jsonic -> b\.jsonic -> a\.jsonic/)
+    }
+
+    // Reuse is not a cycle. A file included from two branches (a diamond),
+    // or twice from the same one, is fine — the check is against the
+    // ancestor chain, not against everything already visited.
+    assert.deepEqual(
+      mk({
+        'base.jsonic': 'x:1',
+        'l.jsonic': '@"base.jsonic"',
+        'r.jsonic': '@"base.jsonic"',
+      }).parse('l: @"l.jsonic", r: @"r.jsonic"'),
+      { l: { x: 1 }, r: { x: 1 } })
+
+    assert.deepEqual(
+      mk({ 'base.jsonic': 'x:1' })
+        .parse('a: @"base.jsonic", b: @"base.jsonic"'),
+      { a: { x: 1 }, b: { x: 1 } })
+
+    // A long acyclic chain still works.
+    assert.deepEqual(
+      mk({
+        'a.jsonic': '@"b.jsonic"',
+        'b.jsonic': '@"c.jsonic"',
+        'c.jsonic': 'z:1',
+      }).parse('@"a.jsonic"'),
+      { z: 1 })
+  })
+
 })
