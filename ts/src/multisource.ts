@@ -470,6 +470,11 @@ const meta = {
   name: 'MultiSource',
 }
 
+// VERSION is this package's version. It MUST equal package.json "version":
+// the release orchestrator rewrites both, and test/version.test.ts fails the
+// build if they drift. Mirrors `const VERSION` in go/multisource.go.
+const VERSION = '0.4.4'
+
 export type {
   Resolver,
   Resolution,
@@ -483,5 +488,14 @@ export type {
   FST,
 }
 
-export { MultiSource, resolvePathSpec, extKind, preloadFiles, NONE, TOP, meta }
+export {
+  MultiSource,
+  resolvePathSpec,
+  extKind,
+  preloadFiles,
+  NONE,
+  TOP,
+  meta,
+  VERSION,
+}
 

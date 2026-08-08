@@ -12,8 +12,10 @@ import (
 	jsonic "github.com/tabnas/jsonic/go"
 )
 
-// Version is the Go module release version.
-const Version = "0.4.4"
+// VERSION is this module's version. It MUST equal ts/package.json
+// "version": the release orchestrator rewrites both, and
+// TestVersionMatchesPackageJSON fails the build if they drift.
+const VERSION = "0.4.4"
 
 // PreloadOptions configures folder-scanning preload: read all matching files
 // from the specified folders into memory before parsing starts, avoiding
