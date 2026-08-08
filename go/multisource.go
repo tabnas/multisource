@@ -138,6 +138,12 @@ func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Con
 }
 
 // JSONProcessor parses JSON source content.
+//
+// Malformed JSON fails the parse (via Resolution.Err), matching the canonical
+// TypeScript json processor, which parses through a strict-JSON jsonic
+// instance and lets its error escape. Substituting the raw text instead hid
+// the broken file and handed the caller a string where a map was expected.
+// res.Val keeps the raw text for callers that inspect the resolution directly.
 func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
 	if res.Src == "" {
 		res.Val = nil
@@ -146,6 +152,7 @@ func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Contex
 	var val any
 	if err := json.Unmarshal([]byte(res.Src), &val); err != nil {
 		res.Val = res.Src
+		res.Err = err
 		return
 	}
 	res.Val = val

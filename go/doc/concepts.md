@@ -146,9 +146,12 @@ package tracks it but differs in scope and idiom:
 - **Function signatures.** Go's `Resolver` takes `(spec, opts, ctx)` and
   `Processor` takes `(res, opts, ctx, j)`. The TS equivalents additionally
   receive `rule` and take `tn` (the engine) as the last parameter.
-- **Error handling.** A not-found reference in Go yields `nil` for that value
-  (no error raised). The TS plugin raises a `multisource_not_found` error with
-  searched paths and a source location.
+- **Error handling.** Both runtimes now agree: a not-found reference raises
+  `multisource_not_found` (with the searched paths and a source location), and
+  a source that is an ancestor of itself raises `multisource_cycle` (naming the
+  loop). Go carries a processing failure back through `Resolution.Err` and
+  re-raises it, so a nested `@missing`, or malformed `.json` content, fails the
+  whole parse rather than silently substituting raw text — as in TS.
 - **Dependency tracking.** Both record a `DependencyMap` when you pass an empty
   `deps` map in the `multisource` parse meta (Go: a `DependencyMap` under
   `ctx.Meta["multisource"]["deps"]`, via `ParseMeta`). Go's `TOP` is a string

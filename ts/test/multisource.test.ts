@@ -425,6 +425,44 @@ describe('multisource', () => {
   })
 
 
+  // A dot in a FOLDER name must not suppress the implicit-extension / index
+  // search for an extensionless reference: `my.app/conf` has no extension —
+  // the folder does. The kind is the extension of the LAST path segment only
+  // (extKind). Mirrors go/fs_test.go TestFileResolverFSDottedFolder; the
+  // shared fixture test/spec/implicit.tsv pins the same rule for the mem
+  // resolver.
+  test('file-dotted-folder', () => {
+    const j0 = new Tabnas().use(jsonic)
+      .use(MultiSource, {
+        resolver: makeFileResolver()
+      })
+
+    const { fs } = memfs({
+      'my.app': {
+        'conf.jsonic': 'c:1',
+        'plain.txt': 'RAW',
+        'nest.jsonic': 'n:@"conf.jsonic"',
+        mod: {
+          'index.jsonic': 'm:2'
+        },
+      }
+    })
+
+    // implicit extension under a dotted folder
+    assert.deepEqual(j0.parse('x:@"/my.app/conf"', { fs }), { x: { c: 1 } })
+
+    // folder index file under a dotted folder
+    assert.deepEqual(j0.parse('x:@"/my.app/mod"', { fs }), { x: { m: 2 } })
+
+    // an unknown extension is still the raw string
+    assert.deepEqual(j0.parse('x:@"/my.app/plain.txt"', { fs }), { x: 'RAW' })
+
+    // a relative reference inside a source under a dotted folder
+    assert.deepEqual(j0.parse('x:@"/my.app/nest"', { fs }),
+      { x: { n: { c: 1 } } })
+  })
+
+
   test('pkg-require-array', () => {
     const j1 = new Tabnas().use(jsonic)
       .use(MultiSource, {

@@ -1,2 +1,6 @@
 input	expected	opts
 x:@a	ERROR:multisource_not_found	{"mem":{}}
+@"a.jsonic"	ERROR:multisource_cycle	{"mem":{"a.jsonic":"@\"a.jsonic\""}}
+@"a.jsonic"	ERROR:multisource_cycle	{"mem":{"a.jsonic":"@\"b.jsonic\"","b.jsonic":"@\"a.jsonic\""}}
+l:@"l.jsonic",r:@"r.jsonic"	{"l":{"x":1},"r":{"x":1}}	{"mem":{"base.jsonic":"x:1","l.jsonic":"@\"base.jsonic\"","r.jsonic":"@\"base.jsonic\""}}
+k:@"a.json"	ERROR:unexpected	{"mem":{"a.json":"not json"}}

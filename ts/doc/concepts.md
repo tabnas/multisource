@@ -110,6 +110,10 @@ chooses the processor. The default extension order is `.jsonic, .jsc, .json,
 .js` — the most specific format first. This is the same convention as Node's
 module resolution, which makes references feel familiar.
 
+"Has an extension" is judged on the **last path segment only** (`extKind`), so
+a dot in a parent folder — `/my.app/conf`, `a.d/foo` — does not suppress the
+implicit-extension search.
+
 ## The grammar tweaks
 
 To make references appear in three positions — mid-map, top-level, and as the
@@ -136,6 +140,19 @@ and the plugin populates a flat `DependencyMap`: for each target path, the set
 of source paths it referenced, each with a timestamp. The top of the tree is
 the `TOP` symbol. This is the raw material for cache invalidation and watch
 lists: when an upstream file changes, you know which documents to re-parse.
+
+## Cycles and reuse
+
+A source may not be an ancestor of itself. The plugin threads the chain of
+enclosing source paths through the parse meta (`multisource.parents`) and, on
+each resolution, checks the newly resolved path against that chain; a hit
+raises `multisource_cycle` naming the loop. Without the check, `a → b → a`
+recurses until the stack overflows — a `RangeError` from deep inside the
+engine, with no source position and no clue which files are at fault.
+
+The check is against the *ancestor chain*, not against everything already
+visited, so including one source from two branches (a diamond), or twice from
+the same document, is reuse and remains legal.
 
 ## Design trade-offs
 
