@@ -204,12 +204,14 @@ go test -v ./...       # plugin + resolver/processor tests
 
 The repo root [`Makefile`](Makefile) (adapted from voxgig/util) wraps
 both halves: `make build|test|clean` run the TS and Go sides;
-`make publish-go V=x.y.z` injects `V` into the `const Version` in
+`make publish-go V=x.y.z` injects `V` into the `const VERSION` in
 `go/multisource.go`, commits, and tags `go/vX.Y.Z`; `make publish-ts`
 publishes the TS package at its `package.json` version. Keep the two in
-step — they are both `0.4.3` today. Local Go builds resolve the unpublished siblings via
-the `go.work` + node_modules symlinks created by `admin/scripts/link.sh`;
-there is no checked-in `go.work`.
+step — they are held at the same version, enforced by the `VERSION` drift
+tests in `go/version_test.go` and `ts/test/version.test.ts`, which compare
+each runtime's `VERSION` against `ts/package.json`. Local Go builds resolve
+the unpublished siblings via the `go.work` + node_modules symlinks created
+by `admin/scripts/link.sh`; there is no checked-in `go.work`.
 
 ## Optional composition test (@tabnas/debug)
 
