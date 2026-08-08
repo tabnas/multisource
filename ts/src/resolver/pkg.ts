@@ -2,7 +2,7 @@
 
 import * as SystemFs from 'node:fs'
 import * as Path from 'node:path'
-import { type FST, MultiSourceOptions, Resolver, Resolution, resolvePathSpec, NONE } from '../multisource'
+import { type FST, MultiSourceOptions, Resolver, Resolution, resolvePathSpec, extKind, NONE } from '../multisource'
 import { Rule, Context } from '@tabnas/parser'
 import { buildPotentials } from './mem'
 
@@ -66,7 +66,7 @@ export function makePkgResolver(options: {
         src = load(path, fs)
         if (null != src) {
           ps.full = path
-          ps.kind = (path.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+          ps.kind = extKind(path)
           break
         }
       }
@@ -78,7 +78,7 @@ export function makePkgResolver(options: {
         ps.full = useRequire.resolve(ps.path, requireOptions)
         if (null != ps.full) {
           src = load(ps.full, SystemFs)
-          ps.kind = (ps.full.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+          ps.kind = extKind(ps.full)
         }
       }
       catch (me: any) {
@@ -128,7 +128,7 @@ export function makePkgResolver(options: {
             ps.full = useRequire.resolve(path, requireOptions)
             if (null != ps.full) {
               src = load(ps.full, SystemFs)
-              ps.kind = (ps.full.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+              ps.kind = extKind(ps.full)
               break
             }
           }
@@ -141,7 +141,7 @@ export function makePkgResolver(options: {
                 ps.full = path
                 src = load(ps.full, fs)
                 if (null != src) {
-                  ps.kind = (path.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+                  ps.kind = extKind(path)
                   break
                 }
               }

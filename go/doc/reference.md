@@ -177,8 +177,12 @@ for re-parsing.
 | Function | Kind | Behaviour |
 | --- | --- | --- |
 | `DefaultProcessor` | `NONE` | `res.Val = res.Src` (raw string). |
-| `JSONProcessor` | `json` | `encoding/json` unmarshal; falls back to the raw string on error; `nil` on empty source. |
-| `JsonicProcessor` | `jsonic`, `jsc` | Re-parses `res.Src` through the engine; falls back to the raw string on error; `nil` on empty source. |
+| `JSONProcessor` | `json` | `encoding/json` unmarshal; `nil` on empty source. Malformed JSON fails the parse (reported through `Resolution.Err`), as in TypeScript. |
+| `JsonicProcessor` | `jsonic`, `jsc` | Re-parses `res.Src` through the engine; `nil` on empty source. A parse failure inside the source (for example a nested `@missing`) fails the parse, reported through `Resolution.Err`. |
+
+In both cases `res.Val` still holds the raw source text, for callers that
+invoke a processor directly and inspect the `Resolution`; it is `res.Err` that
+makes the enclosing parse fail.
 
 ```go
 func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
@@ -278,8 +282,13 @@ Placement determines splicing:
 
 ## Behaviour notes
 
-- A reference whose resolver returns `Found: false` yields `nil` for that
-  value — it is not an error.
+- A reference whose resolver returns `Found: false` fails the parse with
+  `multisource_not_found` ("source not found: {path}"), listing the searched
+  paths — the same contract as the TypeScript plugin.
+- A source that is an ancestor of itself fails the parse with
+  `multisource_cycle` ("source includes itself: {path}"), naming the loop.
+  Including one source from two different branches (a diamond) is reuse, not a
+  cycle, and is allowed.
 - Numbers parse to `float64` (the jsonic engine default), as in all jsonic Go
   output.
 - `MakeJsonic` adds the mark character to the engine's ender chars so built-in

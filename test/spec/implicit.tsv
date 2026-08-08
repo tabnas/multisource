@@ -21,3 +21,10 @@ x:11 @a.jsonic @d.jsonic	{"x":11,"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic
 @a.jsonic x:11 @d.jsonic	{"a":1,"x":11,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
 x:{} @a.jsonic @d.jsonic	{"x":{},"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
 x:y:{} @a.jsonic @d.jsonic	{"x":{"y":{}},"a":1,"d":3}	{"mem":{"a.jsonic":"a:1","b.jsonic":"a:{b:1,c:2}","d.jsonic":"d:3"}}
+@"a.d/foo"	{"x":1}	{"mem":{"a.d/foo.jsonic":"x:1"}}
+z:@"a.d/foo"	{"z":{"x":1}}	{"mem":{"a.d/foo.jsonic":"x:1"}}
+@"a.d/sub"	{"y":2}	{"mem":{"a.d/sub/index.jsonic":"y:2"}}
+@"a.d/foo.jsonic"	{"x":1}	{"mem":{"a.d/foo.jsonic":"x:1"}}
+c:@"a.d/foo.txt"	{"c":"RAW"}	{"mem":{"a.d/foo.txt":"RAW"}}
+@"b/a.jsonic"	{"q":{"z":9}}	{"mem":{"b/a.jsonic":"q:@\"c.jsonic\"","b/c.jsonic":"z:9"}}
+@"b/a.jsonic"	{"q":{"z":9}}	{"mem":{"b/a.jsonic":"q:@\"sub/c.jsonic\"","b/sub/c.jsonic":"z:9"}}

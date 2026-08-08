@@ -2,7 +2,7 @@
 
 import * as SystemFs from 'node:fs'
 import * as Path from 'node:path'
-import { type FST, MultiSourceOptions, Resolver, Resolution, resolvePathSpec, NONE } from '../multisource'
+import { type FST, MultiSourceOptions, Resolver, Resolution, resolvePathSpec, extKind, NONE } from '../multisource'
 import { Rule, Context } from '@tabnas/parser'
 import { buildPotentials } from './mem'
 
@@ -89,7 +89,7 @@ export function makeFileResolver(
           src = preload?.[path] ?? load(path, fs)
           if (null != src) {
             ps.full = path
-            ps.kind = (path.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+            ps.kind = extKind(path)
             break
           }
         }

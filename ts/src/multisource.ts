@@ -41,7 +41,7 @@ type MultiSourceOptions = {
   path?: string // Base path, prefixed to paths
   markchar?: string // Character to mark start of multisource directive
   processor?: { [kind: string]: Processor }
-  implictExt?: []
+  implictExt?: string[]
   preload?: PreloadOptions // Preload files from folders into memory
 }
 
@@ -355,6 +355,23 @@ MultiSource.defaults = {
   implictExt: ['jsonic', 'jsc', 'json', 'js'],
 }
 
+// The source kind is the extension of the LAST path segment (without the
+// dot), or NONE when that segment has no dot.
+//
+// It must be segment-scoped: matching `/\.([^.]*)$/` against the whole path
+// makes a dot anywhere in a parent folder (`/my.app/conf`, `a.d/foo`) produce
+// a bogus kind such as `app/conf`, which is not NONE — so the resolvers skip
+// the implicit-extension search entirely and an extensionless reference under
+// a dotted folder is reported as not found. Mirrors Go's extKind, which is
+// segment-scoped via path.Ext.
+function extKind(full?: string): string {
+  if (null == full) {
+    return NONE
+  }
+  let seg = (full.match(/[^\\/]*$/) as string[])[0]
+  return (seg.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+}
+
 function resolvePathSpec(
   popts: MultiSourceOptions,
   ctx: Context,
@@ -384,7 +401,7 @@ function resolvePathSpec(
         : path
       : undefined
 
-  let kind = null == full ? NONE : (full.match(/\.([^.]*)$/) || [NONE, NONE])[1]
+  let kind = extKind(full)
 
   let res: Resolution = {
     kind,
@@ -466,5 +483,5 @@ export type {
   FST,
 }
 
-export { MultiSource, resolvePathSpec, preloadFiles, NONE, TOP, meta }
+export { MultiSource, resolvePathSpec, extKind, preloadFiles, NONE, TOP, meta }
 

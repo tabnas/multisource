@@ -16,7 +16,7 @@ Peer dependencies: `@tabnas/parser` (the engine), `@tabnas/jsonic` (grammar),
 
 | Specifier | Exports |
 | --- | --- |
-| `@tabnas/multisource` | `MultiSource`, `resolvePathSpec`, `preloadFiles`, `NONE`, `TOP`, `meta`, and all types |
+| `@tabnas/multisource` | `MultiSource`, `resolvePathSpec`, `extKind`, `preloadFiles`, `NONE`, `TOP`, `meta`, and all types |
 | `@tabnas/multisource/resolver/mem` | `makeMemResolver`, `buildPotentials` |
 | `@tabnas/multisource/resolver/file` | `makeFileResolver` |
 | `@tabnas/multisource/resolver/pkg` | `makePkgResolver` |
@@ -203,6 +203,18 @@ Normalises a reference (a string, or an object with a `path` key) into a
 from the extension. Used internally by every resolver; exported so custom
 resolvers can reuse it.
 
+### `extKind`
+
+```ts
+function extKind(full?: string): string
+```
+
+The source `kind` of a path: the extension of its **last segment**, without the
+dot, or `NONE` when that segment has no dot. Segment-scoped, so a dot in a
+parent folder (`/my.app/conf`) does not invent a kind and block the
+implicit-extension search. Used by `resolvePathSpec` and by every bundled
+resolver; exported so custom resolvers classify paths identically.
+
 ### `preloadFiles`
 
 ```ts
@@ -308,6 +320,7 @@ type MultiSourceMeta = {
 | Code | Message | When |
 | --- | --- | --- |
 | `multisource_not_found` | `source not found: {path}` | The resolver returned `found: false` (no source at any searched path). |
+| `multisource_cycle` | `source includes itself: {path}` | The reference resolves to a source that is already an ancestor of this one (`a → b → a`). The hint shows the loop. Including one source from two different branches is reuse, not a cycle, and is allowed. |
 
 The error includes the searched paths and the source location, e.g.
 `...:1:3` (line:column) or `fileName:line:column` when a `fileName` meta is

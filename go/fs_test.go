@@ -49,6 +49,42 @@ func TestFileResolverFS(t *testing.T) {
 	}
 }
 
+// TestFileResolverFSDottedFolder checks that a dot in a FOLDER name does not
+// suppress the implicit-extension / index search for an extensionless
+// reference: `my.app/conf` has no extension, the folder does. The source kind
+// is the extension of the last path segment only. Mirrors the TypeScript
+// `file-dotted-folder` test; the shared fixture
+// test/spec/implicit.tsv covers the same rule for the mem resolver.
+func TestFileResolverFSDottedFolder(t *testing.T) {
+	fsys := mapFS(map[string]string{
+		"my.app/conf.jsonic":      `{c:1}`,
+		"my.app/mod/index.jsonic": `{m:2}`,
+		"my.app/plain.txt":        `RAW`,
+		"my.app/nest.jsonic":      `{n:@"conf.jsonic"}`,
+	})
+
+	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+
+	cases := []struct {
+		src  string
+		want any
+	}{
+		{`{x:@"my.app/conf"}`, map[string]any{"c": float64(1)}}, // implicit ext under a dotted folder
+		{`{x:@"my.app/mod"}`, map[string]any{"m": float64(2)}},  // index file under a dotted folder
+		{`{x:@"my.app/plain.txt"}`, "RAW"},                      // unknown ext still raw
+		// A relative reference inside a source under a dotted folder.
+		{`{x:@"my.app/nest"}`, map[string]any{"n": map[string]any{"c": float64(1)}}},
+	}
+	for _, c := range cases {
+		r, err := j.Parse(c.src)
+		if err != nil {
+			t.Fatalf("%s: %v", c.src, err)
+		}
+		m := asMap(r)
+		assert(t, c.src, m["x"], c.want)
+	}
+}
+
 // TestFileResolverFSViaMeta checks the per-parse filesystem override passed as
 // ctx.Meta["fs"], mirroring the TypeScript j('...', { fs }). The fs must also
 // propagate to nested loads (threaded through the copied parse meta).
