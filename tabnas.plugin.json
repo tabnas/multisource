@@ -1,0 +1,15 @@
+{
+  "$schema": "https://tabnas.dev/schema/plugin.schema.json",
+  "name": "@tabnas/multisource",
+  "go": "github.com/tabnas/multisource/go",
+  "description": "Multi-source document assembly for the tabnas engine: resolves and merges included sources.",
+  "engine": "@tabnas/parser",
+  "specDir": "test/spec",
+  "errorCodes": [
+    "multisource_not_found",
+    "multisource_cycle"
+  ],
+  "docs": "https://tabnas.dev/docs/packages",
+  "repository": "https://github.com/tabnas/multisource",
+  "versionSource": "ts/package.json"
+}
