@@ -208,8 +208,19 @@ const MultiSource: Plugin = (tn: Tabnas, popts: MultiSourceOptions) => {
             src: fullpath,
             wen: Date.now(),
           }
-          depmap[parent] = depmap[parent] || {}
-          depmap[parent][fullpath] = dep
+          // `depmap` is supplied by the caller (see MultiSourceMeta.deps),
+          // so its prototype is not ours to choose: read and write through
+          // own-property operations. On a plain object a path named
+          // __proto__ reads back Object.prototype, and the dependency
+          // record would then be written onto it.
+          const bucket =
+            Object.prototype.hasOwnProperty.call(depmap, parent)
+              ? depmap[parent]
+              : Object.create(null)
+          Object.defineProperty(depmap, parent, {
+            value: bucket, writable: true, enumerable: true, configurable: true,
+          })
+          bucket[fullpath] = dep
         }
       }
 
@@ -427,7 +438,9 @@ function preloadFiles(
     e.startsWith('.') ? e : '.' + e
   )
   const recursive = opts.recursive || false
-  const filemap: { [fullpath: string]: string } = {}
+  // Keyed by resolved file path: a file or directory literally named
+  // __proto__ would otherwise not be recorded as a key at all.
+  const filemap: { [fullpath: string]: string } = Object.create(null)
 
   function scanFolder(folder: string) {
     let entries: string[]
