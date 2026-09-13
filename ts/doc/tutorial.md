@@ -2,7 +2,7 @@
 
 This tutorial takes you from nothing to a working multisource parse. By the
 end you will have parsed a document that pulls a value in from a *second*
-source — the whole point of the plugin.
+source, the whole point of the plugin.
 
 You need Node.js 24+ and a folder where you can install npm packages.
 
@@ -20,7 +20,7 @@ relaxed-JSON grammar (so you can write `a:1` instead of `{"a":1}`), and
 
 The simplest resolver is the *memory* resolver: you hand it a map of
 `path → content`, and `@path` references look up content in that map. No
-files, no disk — ideal for a first run.
+files, no disk: ideal for a first run.
 
 ```js
 import { Tabnas } from '@tabnas/parser'
@@ -39,7 +39,7 @@ j.parse('x:@a.jsonic, y:2')   // => { x: { a: 1 }, y: 2 }
 
 Read that result carefully. The `@a.jsonic` reference was replaced by the
 parsed contents of `a.jsonic` (which is `{ a: 1 }`), and the rest of the
-document — `y:2` — parsed normally. You merged two sources into one result.
+document (`y:2`) parsed normally. You merged two sources into one result.
 
 ## 3. Reference at the top level
 
@@ -109,8 +109,8 @@ Two files and one inline value, merged into a single result.
 
 ## Where to go next
 
-- [How-to guide](./guide.md) — focused recipes: reading from disk, custom
+- [How-to guide](./guide.md). Focused recipes: reading from disk, custom
   source kinds, base paths, dependency tracking, preloading.
-- [Reference](./reference.md) — every export, option and type.
-- [Concepts](./concepts.md) — how resolution and processing actually work,
+- [Reference](./reference.md). Every export, option and type.
+- [Concepts](./concepts.md). How resolution and processing actually work,
   and how the plugin relates to the parser engine.

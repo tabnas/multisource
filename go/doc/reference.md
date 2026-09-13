@@ -82,7 +82,7 @@ type MultiSourceOptions struct {
 | `MarkChar` | `string` | `"@"` | Single character that opens a reference. |
 | `Processor` | `map[string]Processor` | see below | Per-kind source transformers. |
 | `ImplicitExt` | `[]string` | `[".jsonic", ".jsc", ".json"]` | Extensions tried when a reference has none. Normalised to begin with `.`. |
-| `Preload` | `*PreloadOptions` | `nil` | Folder-scanning preload configuration. As in TS, not consumed by the plugin directly — pass it to `PreloadFiles` and feed the result to `FileResolverOptions.Preload`. |
+| `Preload` | `*PreloadOptions` | `nil` | Folder-scanning preload configuration. As in TS, not consumed by the plugin directly; pass it to `PreloadFiles` and feed the result to `FileResolverOptions.Preload`. |
 | `FS` | `fs.FS` | `nil` (OS) | Filesystem for the file/pkg resolvers. A per-parse override may be passed as `ctx.Meta["fs"]`. |
 
 ### Default processors
@@ -127,8 +127,8 @@ func MakeFileResolver(opts ...FileResolverOptions) Resolver
 ```
 
 Loads sources from the filesystem (OS by default; `MultiSourceOptions.FS` or
-`ctx.Meta["fs"]` when injected). The `Preload` map — typically built by
-`PreloadFiles` — is consulted before any file I/O.
+`ctx.Meta["fs"]` when injected). The `Preload` map (typically built by
+`PreloadFiles`) is consulted before any file I/O.
 
 ### `MakePkgResolver`
 
@@ -268,8 +268,8 @@ j.ParseMeta(`@"app.jsonic"`, map[string]any{
 
 In parsed input, a reference is the mark character followed by a path:
 
-- `@a.jsonic` — a bare or quoted path string.
-- `@{path:"a.jsonic"}` — an object with a `path` key (the action reads
+- `@a.jsonic`. A bare or quoted path string.
+- `@{path:"a.jsonic"}`. An object with a `path` key (the action reads
   `spec["path"]`).
 
 Placement determines splicing:
@@ -284,7 +284,7 @@ Placement determines splicing:
 
 - A reference whose resolver returns `Found: false` fails the parse with
   `multisource_not_found` ("source not found: {path}"), listing the searched
-  paths — the same contract as the TypeScript plugin.
+  paths, the same contract as the TypeScript plugin.
 - A source that is an ancestor of itself fails the parse with
   `multisource_cycle` ("source includes itself: {path}"), naming the loop.
   Including one source from two different branches (a diamond) is reuse, not a

@@ -9,7 +9,7 @@ and how it relates to the parser engine. For task recipes see the
 
 Configuration and data rarely live in one file. You want to split a document
 across files, reuse shared fragments, layer overrides, and pull values in from
-packages — all while the result is still a single parsed object. multisource
+packages, all while the result is still a single parsed object. multisource
 adds *references* to the jsonic grammar: a marked path (`@a.jsonic`) that the
 parser replaces, in place, with the parsed contents of another source.
 
@@ -28,11 +28,11 @@ new Tabnas().use(jsonic).use(MultiSource, options)
 
 multisource builds on two further plugins:
 
-- **`@tabnas/directive`** — multisource defines its `@` mark as a *directive*.
+- **`@tabnas/directive`**. Multisource defines its `@` mark as a *directive*.
   The directive plugin handles the mechanics of recognising an open token and
   invoking an action; multisource supplies the action (resolve + process +
   splice).
-- **`@tabnas/path`** — when present, multisource passes the current key path
+- **`@tabnas/path`**. When present, multisource passes the current key path
   down to nested parses (`rule.k.path`), so a referenced source knows where it
   sits in the overall tree.
 
@@ -48,8 +48,8 @@ value (process), and *where* the value goes (splice) are independent.
 
 ### 1. Resolve
 
-The directive action reads the reference — a string, or an object with a
-`path` key — and hands it to the configured **resolver**. The resolver returns
+The directive action reads the reference (a string, or an object with a
+`path` key) and hands it to the configured **resolver**. The resolver returns
 a `Resolution`: the loaded source text (`src`), its detected `kind`, the
 `full` path it was found at, and whether it was `found`.
 
@@ -57,24 +57,24 @@ a `Resolution`: the loaded source text (`src`), its detected `kind`, the
 paths, joins the base path, and extracts the `kind` from the file extension.
 Each resolver then differs only in *where* it looks:
 
-- **mem** — a `path → content` map. No I/O; ideal for tests and embedding.
-- **file** — `node:fs` (or a virtual `ctx.meta.fs`). Adds `node_modules`
+- **mem**. A `path → content` map. No I/O; ideal for tests and embedding.
+- **file**: `node:fs` (or a virtual `ctx.meta.fs`). Adds `node_modules`
   walking and preload support.
-- **pkg** — Node module resolution (`require.resolve`), then `node_modules`
+- **pkg**. Node module resolution (`require.resolve`), then `node_modules`
   walks, then the filesystem.
 
 This split means you can write an HTTP resolver, a database resolver, or a
-test stub without touching the parsing logic — a resolver is just a function.
+test stub without touching the parsing logic; a resolver is just a function.
 
 ### 2. Process
 
 A **processor** turns the resolved `src` string into a value, keyed by the
 source's `kind` (its extension without the dot). The default set:
 
-- `''` (the `NONE` fallback) — returns the raw string.
-- `json` — strict JSON.
-- `jsonic` / `jsc` — re-parse through the engine, enabling recursion.
-- `js` — `require` the module and unwrap a `.default` export.
+- `''` (the `NONE` fallback). Returns the raw string.
+- `json`. Strict JSON.
+- `jsonic` / `jsc`. Re-parse through the engine, enabling recursion.
+- `js`: `require` the module and unwrap a `.default` export.
 
 Processor selection allows one level of *aliasing*: a string value names
 another kind, so `{ conf: 'jsonic' }` routes `.conf` files through the jsonic
@@ -85,9 +85,9 @@ processor. Anything with no matching processor falls back to `NONE`.
 The value is then placed into the parse tree, and *how* depends on where the
 reference appears:
 
-- **As a pair value** (`x:@a.jsonic`) — the value becomes the value of that
+- **As a pair value** (`x:@a.jsonic`): the value becomes the value of that
   key: `{ x: <value> }`.
-- **Alone in a map** (`{@a.jsonic, c:3}`, or a leading `@a.jsonic`) — the
+- **Alone in a map** (`{@a.jsonic, c:3}`, or a leading `@a.jsonic`): the
   referenced map's keys are merged into the surrounding map.
 
 The merge respects the engine's map-combination policy. If `cfg.map.merge` is
@@ -107,29 +107,29 @@ list of *potentials* (`buildPotentials`) and try each in order:
 
 The first existing source wins, and its actual extension sets the `kind` that
 chooses the processor. The default extension order is `.jsonic, .jsc, .json,
-.js` — the most specific format first. This is the same convention as Node's
+.js`, the most specific format first. This is the same convention as Node's
 module resolution, which makes references feel familiar.
 
 "Has an extension" is judged on the **last path segment only** (`extKind`), so
-a dot in a parent folder — `/my.app/conf`, `a.d/foo` — does not suppress the
+a dot in a parent folder (`/my.app/conf`, `a.d/foo`) does not suppress the
 implicit-extension search.
 
 ## The grammar tweaks
 
-To make references appear in three positions — mid-map, top-level, and as the
-sole content of a pair — multisource registers a handful of grammar
+To make references appear in three positions (mid-map, top-level, and as the
+sole content of a pair), multisource registers a handful of grammar
 alternates under the `multisource` group tag (the `directive` plugin's
 `custom` hook):
 
-- **`val`** — recognise the mark; at depth 0 push into a map so a bare leading
+- **`val`**. Recognise the mark; at depth 0 push into a map so a bare leading
   `@a.jsonic` produces an object.
-- **`map`** — when a mark appears inside a map, open the implicit top-level map
+- **`map`**. When a mark appears inside a map, open the implicit top-level map
   node and a following pair; close an inner map when a new mark arrives.
-- **`pair`** — close the current pair so a mark following a value starts fresh.
+- **`pair`**. Close the current pair so a mark following a value starts fresh.
 
 These rules are why `@a.jsonic b:2`, `b:2 @a.jsonic`, and `{x:@a.jsonic}` all
 parse correctly. The implicit top-level map node is explicitly allocated
-because the core no longer auto-allocates it — without that, a pair following a
+because the core no longer auto-allocates it; without that, a pair following a
 leading directive would have nowhere to write.
 
 ## Dependency tracking
@@ -147,7 +147,7 @@ A source may not be an ancestor of itself. The plugin threads the chain of
 enclosing source paths through the parse meta (`multisource.parents`) and, on
 each resolution, checks the newly resolved path against that chain; a hit
 raises `multisource_cycle` naming the loop. Without the check, `a → b → a`
-recurses until the stack overflows — a `RangeError` from deep inside the
+recurses until the stack overflows: a `RangeError` from deep inside the
 engine, with no source position and no clue which files are at fault.
 
 The check is against the *ancestor chain*, not against everything already
@@ -169,6 +169,6 @@ the same document, is reuse and remains legal.
   extensions means a reference is slightly ambiguous, but it matches how
   developers already think about imports and keeps documents terse.
 - **Merging is in-place and deep by default.** This makes layering overrides
-  natural, but means a referenced map shares structure with the parent — the
+  natural, but means a referenced map shares structure with the parent, so the
   plugin is careful to keep the parent node reference stable so following
   pairs write into the same object.
