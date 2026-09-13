@@ -8,7 +8,7 @@
 <!-- /tabnas-badges -->
 
 A Jsonic / tabnas plugin that merges multiple sources into a single parse
-result. A marked path (`@a.jsonic`) is resolved, parsed, and spliced in place —
+result. A marked path (`@a.jsonic`) is resolved, parsed, and spliced in place,
 so one document can compose many.
 
 Docs, guides, the error reference and the playground: **[tabnas.dev](https://tabnas.dev)**.

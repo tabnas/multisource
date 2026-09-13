@@ -2,7 +2,7 @@
 
 This tutorial takes you from nothing to a working multisource parse in Go. By
 the end you will have parsed a document that pulls a value in from a *second*
-source — the whole point of the package.
+source, the whole point of the package.
 
 You need Go 1.24+ and the `github.com/tabnas/multisource/go` module available.
 
@@ -23,7 +23,7 @@ import (
 
 The simplest resolver is the *memory* resolver: you hand it a map of
 `path → content`, and `@path` references look up content in that map. No
-files, no disk — ideal for a first run.
+files, no disk: ideal for a first run.
 
 ```go
 files := map[string]string{
@@ -120,8 +120,8 @@ out, _ := tabnasmultisource.Parse(`{x: @a.jsonic}`,
 
 ## Where to go next
 
-- [How-to guide](./guide.md) — recipes for custom kinds, base paths, merging,
+- [How-to guide](./guide.md). Recipes for custom kinds, base paths, merging,
   and custom resolvers.
-- [Reference](./reference.md) — every exported symbol, option and type.
-- [Concepts](./concepts.md) — how resolution and processing work, and how the
+- [Reference](./reference.md). Every exported symbol, option and type.
+- [Concepts](./concepts.md). How resolution and processing work, and how the
   Go port differs from the TypeScript original.

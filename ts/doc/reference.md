@@ -58,11 +58,11 @@ type MultiSourceOptions = {
 | Field | Type | Default | Purpose |
 | --- | --- | --- | --- |
 | `resolver` | `Resolver` | required | Resolves a reference to source content. |
-| `path` | `string` | — | Base path prefixed to relative references. |
+| `path` | `string` | (none) | Base path prefixed to relative references. |
 | `markchar` | `string` | `'@'` | Single character that opens a reference. |
 | `processor` | `{ [kind]: Processor }` | see defaults | Per-kind source transformers. |
 | `implictExt` | `string[]` | `['jsonic','jsc','json','js']` | Extensions tried when a reference has none. Normalised to begin with `.`. |
-| `preload` | `PreloadOptions` | — | Reserved option for preload configuration (see `preloadFiles`). |
+| `preload` | `PreloadOptions` | (none) | Reserved option for preload configuration (see `preloadFiles`). |
 
 Note the spelling `implictExt` (this is the actual property name).
 
@@ -118,9 +118,9 @@ function makeFileResolver(
 Reads from `node:fs`, or from `ctx.meta.fs` when a virtual filesystem is
 passed in the parse meta. Argument forms:
 
-- omitted — read straight from the resolved path.
-- a `PathFinder` function — rewrite the spec to a path before resolving.
-- a `FileResolverOptions` object — supply a `pathfinder` and/or a `preload`
+- omitted. Read straight from the resolved path.
+- a `PathFinder` function. Rewrite the spec to a path before resolving.
+- a `FileResolverOptions` object. Supply a `pathfinder` and/or a `preload`
   map. Preloaded content is checked before disk.
 
 When a reference has no extension, the resolver also tries `node_modules`
@@ -137,9 +137,9 @@ function makePkgResolver(options: {
 
 Resolves references through Node module resolution. `options.require`:
 
-- a `require` function — used as `require.resolve`.
-- a `string` — a single `node_modules` search root.
-- a `string[]` — multiple search roots.
+- a `require` function, used as `require.resolve`.
+- a `string`, a single `node_modules` search root.
+- a `string[]`, multiple search roots.
 
 Resolution order: `require.resolve`, then a `node_modules` walk up the tree,
 then the `require.main.paths`, then implicit-extension potentials, then a
@@ -165,7 +165,7 @@ function makeJsonicProcessor(): Processor
 ```
 
 Returns a processor that re-parses `res.src` through the engine (`tn.parse`),
-inheriting the current grammar — so nested references resolve recursively.
+inheriting the current grammar, so nested references resolve recursively.
 Used for `.jsonic` and `.jsc` by default.
 
 ### `makeJavaScriptProcessor`
@@ -322,6 +322,5 @@ type MultiSourceMeta = {
 | `multisource_not_found` | `source not found: {path}` | The resolver returned `found: false` (no source at any searched path). |
 | `multisource_cycle` | `source includes itself: {path}` | The reference resolves to a source that is already an ancestor of this one (`a → b → a`). The hint shows the loop. Including one source from two different branches is reuse, not a cycle, and is allowed. |
 
-The error includes the searched paths and the source location, e.g.
-`...:1:3` (line:column) or `fileName:line:column` when a `fileName` meta is
+The error includes the searched paths and the source location, for example `...:1:3` (line:column) or `fileName:line:column` when a `fileName` meta is
 supplied.

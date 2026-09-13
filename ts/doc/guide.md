@@ -89,7 +89,7 @@ j.parse('{@base.jsonic, @override.jsonic}')   // => { name: 'svc', port: 9090 }
 ## Register a processor for a new file kind
 
 A *processor* turns the resolved source string into a value. The plugin picks
-one by *kind* — the file extension without the dot. Register your own to teach
+one by *kind*, the file extension without the dot. Register your own to teach
 multisource a new format:
 
 ```js
@@ -110,7 +110,7 @@ j.parse('rows:@data.csv')   // => { rows: ['a', 'b', 'c'] }
 
 A processor receives the `Resolution` and assigns the parsed value to
 `res.val`. The remaining arguments (`popts, rule, ctx, tn`) are available if
-you need the parser engine — for example to recursively parse the source.
+you need the parser engine, for example to recursively parse the source.
 
 ### Alias one kind to another
 

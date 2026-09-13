@@ -44,11 +44,11 @@ j.parse('@"foo.jsonic" b:2')   // => { a: 1, b: 2 }
 
 Four-quadrant [Diátaxis](https://diataxis.fr) docs:
 
-- [Tutorial](doc/tutorial.md) — zero to a working multisource parse.
-- [How-to guide](doc/guide.md) — recipes: files, custom kinds, merging,
+- [Tutorial](doc/tutorial.md). Zero to a working multisource parse.
+- [How-to guide](doc/guide.md). Recipes: files, custom kinds, merging,
   base paths, dependency tracking, preloading.
-- [Reference](doc/reference.md) — every export, option and type.
-- [Concepts](doc/concepts.md) — how it works and why; the engine relationship.
+- [Reference](doc/reference.md). Every export, option and type.
+- [Concepts](doc/concepts.md). How it works and why; the engine relationship.
 
 The Go port lives in [`../go`](../go/) with its own
 [four-quadrant docs](../go/doc/).

@@ -42,7 +42,7 @@ j.Parse(`{@base.jsonic, @override.jsonic}`)
 ## Register a processor for a new file kind
 
 A *processor* turns the resolved source string (`res.Src`) into a value
-(`res.Val`). The package picks one by *kind* — the file extension without the
+(`res.Val`). The package picks one by *kind*, the file extension without the
 dot. Register your own to teach multisource a new format:
 
 ```go

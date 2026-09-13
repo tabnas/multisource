@@ -3,13 +3,13 @@
 This explains how the Go `tabnasmultisource` package works and how it relates
 to the parser engine. For task recipes see the [how-to guide](./guide.md); for
 the exact API see the [reference](./reference.md). This document tracks the
-TypeScript original — the canonical implementation — and ends with a section
+TypeScript original (the canonical implementation) and ends with a section
 on where the Go port differs.
 
 ## What problem it solves
 
 Configuration and data rarely live in one file. You want to split a document
-across files, reuse shared fragments, layer overrides, and compose them — all
+across files, reuse shared fragments, layer overrides, and compose them, all
 while the result is still a single parsed value. multisource adds *references*
 to the jsonic grammar: a marked path (`@a.jsonic`) that the parser replaces,
 in place, with the parsed contents of another source.
@@ -27,10 +27,10 @@ j := tabnasmultisource.MakeJsonic(opts)
 
 The plugin builds on two further Go packages:
 
-- **`github.com/tabnas/directive/go`** — multisource defines its `@` mark as a
+- **`github.com/tabnas/directive/go`**. Multisource defines its `@` mark as a
   *directive*. The directive package handles recognising the open token and
   invoking an action; multisource supplies the action.
-- **`github.com/tabnas/path/go`** — composes on the same instance to track key
+- **`github.com/tabnas/path/go`**. Composes on the same instance to track key
   paths through references when installed.
 
 Because `JsonicProcessor` re-parses through the *same* engine (`j.Parse`), a
@@ -43,8 +43,8 @@ Every reference goes through three independent stages.
 
 ### 1. Resolve
 
-`MultiSource`'s directive action reads the reference — a string, or a
-`map[string]any` with a `path` key — and calls `ResolvePathSpec` to build a
+`MultiSource`'s directive action reads the reference (a string, or a
+`map[string]any` with a `path` key) and calls `ResolvePathSpec` to build a
 `PathSpec` (kind, base, full, abs). It then calls the configured **resolver**,
 which returns a `Resolution` with the loaded `Src`, the detected `Kind`, the
 `Full` path, and whether it was `Found`.
@@ -58,9 +58,9 @@ function, you can supply your own for HTTP, databases, or test stubs.
 
 A **processor** turns `res.Src` into `res.Val`, keyed by `Kind`:
 
-- `NONE` (`""`) — the raw string.
-- `json` — `encoding/json`.
-- `jsonic` / `jsc` — re-parse through the engine, enabling recursion.
+- `NONE` (`""`). The raw string.
+- `json`: `encoding/json`.
+- `jsonic` / `jsc`. Re-parse through the engine, enabling recursion.
 
 `getProcessor` looks up `Processor[kind]`, then falls back to `Processor[NONE]`,
 then to `DefaultProcessor`.
@@ -96,10 +96,10 @@ To let references appear mid-map, top-level, and as the sole content of a
 pair, the plugin's `Custom` hook registers grammar alternates under the
 `multisource` group tag (via `GrammarSetting.Rule.Alt.G`):
 
-- **`val`** — recognise the mark; at depth 0 push into a map.
-- **`map`** — open a following pair when a mark appears inside a map; close an
+- **`val`**. Recognise the mark; at depth 0 push into a map.
+- **`map`**. Open a following pair when a mark appears inside a map; close an
   inner map when a new mark arrives.
-- **`pair`** — close the current pair so a mark following a value starts fresh.
+- **`pair`**. Close the current pair so a mark following a value starts fresh.
 
 These are why `@a.jsonic b:2`, `b:2 @a.jsonic`, and `{x: @a.jsonic}` all parse.
 
@@ -136,7 +136,7 @@ package tracks it but differs in scope and idiom:
 - **Resolvers.** Go ships `MakeMemResolver`, `MakeFileResolver` (disk or
   injected `io/fs.FS`, preload map, pathfinder), and `MakePkgResolver`
   (`node_modules` walking, package.json `main`). The pkg resolver implements
-  the portable subset of Node's resolution — it does not implement conditional
+  the portable subset of Node's resolution; it does not implement conditional
   `exports` or `require.resolve` semantics.
 - **Preload.** `PreloadFiles` / `PreloadOptions` mirror the TS folder-scanning
   preload: scan folders (optionally recursive) for matching extensions into a
@@ -151,7 +151,7 @@ package tracks it but differs in scope and idiom:
   a source that is an ancestor of itself raises `multisource_cycle` (naming the
   loop). Go carries a processing failure back through `Resolution.Err` and
   re-raises it, so a nested `@missing`, or malformed `.json` content, fails the
-  whole parse rather than silently substituting raw text — as in TS.
+  whole parse rather than silently substituting raw text, as in TS.
 - **Dependency tracking.** Both record a `DependencyMap` when you pass an empty
   `deps` map in the `multisource` parse meta (Go: a `DependencyMap` under
   `ctx.Meta["multisource"]["deps"]`, via `ParseMeta`). Go's `TOP` is a string
