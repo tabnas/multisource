@@ -23,8 +23,8 @@ To put a literal backslash in `input`, write `\\`.
 
 A real filesystem cannot live in a fixture, so these cases all run against
 the in-memory resolver built from the `mem` map. The file, pkg and preload
-resolvers stay covered by the in-language tests in `ts/test/multisource.test.ts`
-and `go/{fs,resolver,preload}_test.go`.
+resolvers stay covered by the in-language tests in `ts/test/multisource.test.ts`,
+`go/{fs,resolver,preload}_test.go` and `rs/tests/file_corpus_test.rs`.
 
 Results are compared after a JSON round-trip, so key order and the
 `OrderedMap` / null-prototype-object representations do not affect the
@@ -34,16 +34,18 @@ comparison.
 
 - TypeScript: `ts/test/parity.test.ts` — `makeRunner(...).dir(...)`.
 - Go: `go/parity_test.go` — `support.Runner{...}.Dir(t, dir)`.
+- Rust: `rs/tests/parity_test.rs` — `Runner::new_with_row(...).dir(&dir)`.
 
-Both are a dozen lines holding only what is specific to multisource: how
-to build the parser for a row's options. Everything else — finding
-`test/spec`, reading the file, decoding escapes, the `ERROR:` contract,
-the comparison, the `<file>:<line>` in a failure message — comes from
-[`@tabnas/support`](https://github.com/tabnas/support) and its Go half, so
-the two loaders cannot drift from each other either.
+All three are a dozen lines holding only what is specific to
+multisource: how to build the parser for a row's options. Everything
+else — finding `test/spec`, reading the file, decoding escapes, the
+`ERROR:` contract, the comparison, the `<file>:<line>` in a failure
+message — comes from [`@tabnas/support`](https://github.com/tabnas/support)
+and its Go and Rust halves, so the loaders cannot drift from each other
+either.
 
-Both discover files by directory listing: adding a `.tsv` here runs it in
-both runtimes without touching either runner. An empty fixture, and a spec
+All three discover files by directory listing: adding a `.tsv` here runs
+it in every runtime without touching any runner. An empty fixture, and a spec
 directory with no fixtures in it, both **fail** — a runner that reports
 green having run nothing is indistinguishable from coverage that was never
 there.
@@ -56,5 +58,6 @@ there.
 - TypeScript is canonical. If the two runtimes disagree, the TS behaviour is
   the expected value — unless Go has exposed a genuine TS defect, in which
   case fix TS first and pin the corrected behaviour here.
-- A new fixture must pass in BOTH runtimes: run `go test ./...` (from `go/`)
-  and `npm test` (from `ts/`) before considering it done.
+- A new fixture must pass in EVERY runtime: run `go test ./...` (from
+  `go/`), `npm test` (from `ts/`) and `cargo test --all-targets` (from
+  `rs/`) before considering it done.

@@ -19,6 +19,7 @@ This repository contains:
 |---|---|
 | [`ts/`](ts/) | TypeScript / JavaScript implementation (canonical). |
 | [`go/`](go/) | Go port (tracks the TS version). |
+| [`rs/`](rs/) | Rust port, crate `tabnas-multisource` (tracks the TS version). |
 
 ## Tiny example
 
@@ -47,6 +48,11 @@ Four-quadrant [Diátaxis](https://diataxis.fr) docs per language:
 | Concepts (understanding) | [`ts/doc/concepts.md`](ts/doc/concepts.md) | [`go/doc/concepts.md`](go/doc/concepts.md) |
 
 See also [`ts/README.md`](ts/README.md) and [`go/README.md`](go/README.md).
+
+**Rust**: [`rs/README.md`](rs/README.md) covers use, install, the
+resolvers and processors, the sandbox root, and the differences from the
+canonical TypeScript. Divergences across all three runtimes are recorded
+in [`DIVERGENCE.md`](DIVERGENCE.md).
 
 ## Grammar diagram
 
