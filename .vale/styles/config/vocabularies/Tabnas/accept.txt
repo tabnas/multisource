@@ -10,6 +10,7 @@
 
 [Ee]nder
 [Jj]sonic
+[Ll]ockfile
 [Ll]ookups
 [Mm]atchers
 [Mm]ultisource
@@ -19,10 +20,12 @@
 [Pp]reloading
 [Rr]ecurses
 [Rr]untimes
+[Ss]andboxed
 [Ss]andboxing
 [Ss]tdlib
 [Ss]ubfolders
 [Tt]abnas
 [Tt]S
 [Uu]nmarshal
+[Uu]ntrusted
 [Vv]oxgig
