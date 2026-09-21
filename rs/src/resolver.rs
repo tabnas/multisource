@@ -205,12 +205,21 @@ impl FileResolver {
 
     /// Confine every candidate path to `root`.
     ///
-    /// Paths are compared after `.` and `..` are resolved lexically and
-    /// by whole segment, so neither `../../etc/passwd` nor a sibling
-    /// directory whose name merely starts with the root's can be
-    /// reached. Symbolic links are deliberately not followed when
-    /// resolving, so a link inside the root cannot smuggle a target
-    /// outside it past this check.
+    /// The root and every candidate are resolved through the filesystem
+    /// first ([`SourceFs::real_path`]), then compared by whole segment.
+    /// So neither `../../etc/passwd` nor a sibling directory whose name
+    /// merely starts with the root's can be reached, a relative root
+    /// names the same directory a relative candidate does, and a
+    /// symbolic link inside the root is judged by where it POINTS
+    /// rather than by where it sits. A link that resolves to nothing at
+    /// all is refused outright, since its target could be created
+    /// before a read reaches it.
+    ///
+    /// What this cannot do is stop a link created in the instant
+    /// between the check and the read: the check answers for the
+    /// filesystem as it was. A root whose contents another process can
+    /// write needs a filesystem that enforces the boundary, not a
+    /// resolver.
     ///
     /// Neither the canonical TypeScript nor the Go port has this: they
     /// resolve wherever the reference points. It is additive, so a
@@ -227,15 +236,8 @@ impl FileResolver {
             .unwrap_or_else(|| Arc::new(OsFs))
     }
 
-    fn allowed(&self, candidate: &str, os_paths: bool) -> bool {
-        match &self.root {
-            Some(root) => within_root(candidate, root, os_paths),
-            None => true,
-        }
-    }
-
-    fn load(&self, filesystem: &dyn SourceFs, path: &str, os_paths: bool) -> Option<String> {
-        if !self.allowed(path, os_paths) {
+    fn load(&self, filesystem: &dyn SourceFs, path: &str, root: &Confinement) -> Option<String> {
+        if !root.allows(filesystem, path) {
             return None;
         }
         if let Some(src) = self.preload.get(path) {
@@ -245,17 +247,65 @@ impl FileResolver {
     }
 }
 
+/// A configured sandbox root, resolved once per resolution.
+///
+/// The root is put through the same filesystem as the candidates, so a
+/// relative root names the same directory a relative candidate does
+/// (before, an absolute candidate was compared against a root still
+/// spelled `srv/app`, and every reference inside the root was reported
+/// missing), and a link is judged by its target rather than its name.
+struct Confinement {
+    root: Option<String>,
+    os_paths: bool,
+}
+
+impl Confinement {
+    fn new(filesystem: &dyn SourceFs, root: Option<&String>) -> Self {
+        Confinement {
+            // A root the filesystem cannot resolve (it is not there,
+            // or is itself a link to nothing) still has to be compared
+            // against something, so fall back to the lexical form. A
+            // candidate that cannot be resolved is refused on its own
+            // account below, so nothing is let through by this.
+            root: root.map(|root| {
+                filesystem
+                    .real_path(root)
+                    .unwrap_or_else(|| filesystem.canon(root))
+            }),
+            os_paths: filesystem.native_paths(),
+        }
+    }
+
+    fn allows(&self, filesystem: &dyn SourceFs, candidate: &str) -> bool {
+        let Some(root) = &self.root else {
+            return true;
+        };
+        match filesystem.real_path(candidate) {
+            Some(real) => within_root(&real, root, self.os_paths),
+            // The candidate resolves to nothing that can be compared:
+            // a dangling or looping link. Refuse it.
+            None => false,
+        }
+    }
+}
+
 impl Resolver for FileResolver {
     fn resolve(&self, reference: Option<&str>, input: &ResolverInput<'_>) -> Resolution {
         let filesystem = self.filesystem(input.options);
-        let os_paths = filesystem.native_paths();
+        let root = Confinement::new(filesystem.as_ref(), self.root.as_ref());
 
         let found = reference.map(|reference| match &self.pathfinder {
             Some(pathfinder) => pathfinder(reference),
             None => reference.to_string(),
         });
 
-        let is_file = |path: &str| filesystem.read_file(path).is_some();
+        // A preloaded source is a file this resolver can serve, whether
+        // or not the filesystem still holds it: the preload workflow
+        // exists so a parse can run with the files gone. Asking only the
+        // filesystem made such a source look like a DIRECTORY, so a
+        // relative reference inside it resolved under the source itself.
+        let is_file =
+            |path: &str| self.preload.contains_key(path) || filesystem.read_file(path).is_some();
         let dir = |path: &str| filesystem.dir(path);
         let base = base_for(input, &is_file, &dir);
 
@@ -270,7 +320,7 @@ impl Resolver for FileResolver {
 
         let mut search = vec![full.clone()];
 
-        if let Some(src) = self.load(filesystem.as_ref(), &full, os_paths) {
+        if let Some(src) = self.load(filesystem.as_ref(), &full, &root) {
             return Resolution::found(spec, full, src).with_search(search);
         }
 
@@ -310,7 +360,7 @@ impl Resolver for FileResolver {
         search.extend(potentials.iter().cloned());
 
         for candidate in &potentials {
-            if let Some(src) = self.load(filesystem.as_ref(), candidate, os_paths) {
+            if let Some(src) = self.load(filesystem.as_ref(), candidate, &root) {
                 return Resolution::found(spec, candidate, src).with_search(search);
             }
         }
@@ -389,13 +439,6 @@ impl PkgResolver {
             .or_else(|| options.fs.clone())
             .unwrap_or_else(|| Arc::new(OsFs))
     }
-
-    fn allowed(&self, candidate: &str, os_paths: bool) -> bool {
-        match &self.root {
-            Some(root) => within_root(candidate, root, os_paths),
-            None => true,
-        }
-    }
 }
 
 /// Is `reference` an explicit relative reference?
@@ -438,6 +481,7 @@ fn ancestors(filesystem: &dyn SourceFs, dir: &str) -> Vec<String> {
 impl Resolver for PkgResolver {
     fn resolve(&self, reference: Option<&str>, input: &ResolverInput<'_>) -> Resolution {
         let filesystem = self.filesystem(input.options);
+        let root = Confinement::new(filesystem.as_ref(), self.root.as_ref());
         let os_paths = filesystem.native_paths();
 
         let is_file = |path: &str| filesystem.read_file(path).is_some();
@@ -453,7 +497,7 @@ impl Resolver for PkgResolver {
         }
 
         let load = |candidate: &str| -> Option<String> {
-            if !self.allowed(candidate, os_paths) {
+            if !root.allows(filesystem.as_ref(), candidate) {
                 return None;
             }
             filesystem.read_file(candidate)
@@ -532,14 +576,62 @@ fn resolve_in_pkg_dir(
 ) -> Option<(String, String)> {
     let target = filesystem.join(&[node_modules, reference]);
 
-    for candidate in build_potentials(&target, implicit_ext) {
+    // The canonical resolver is Node's `require.resolve`, whose order
+    // for a bare reference is: the reference as a FILE (itself, then
+    // each implicit extension), then the target package's `package.json`
+    // `main`, and only then a directory index. Trying every potential
+    // first returned `index.jsonic` for a package that declares a main,
+    // which is a normal package layout, so the port loaded a different
+    // file from the canonical one.
+    let (files, indexes): (Vec<String>, Vec<String>) = build_potentials(&target, implicit_ext)
+        .into_iter()
+        .partition(|candidate| !is_index_of(candidate, &target));
+
+    for candidate in &files {
         search.push(candidate.clone());
-        if let Some(src) = load(&candidate) {
-            return Some((candidate, src));
+        if let Some(src) = load(candidate) {
+            return Some((candidate.clone(), src));
         }
     }
 
-    let manifest = filesystem.join(&[&target, "package.json"]);
+    if let Some(main) = manifest_main(load, filesystem, &target, search) {
+        let main_path = filesystem.join(&[&target, &main]);
+        for candidate in build_potentials(&main_path, implicit_ext) {
+            search.push(candidate.clone());
+            if let Some(src) = load(&candidate) {
+                return Some((candidate, src));
+            }
+        }
+    }
+
+    for candidate in &indexes {
+        search.push(candidate.clone());
+        if let Some(src) = load(candidate) {
+            return Some((candidate.clone(), src));
+        }
+    }
+
+    None
+}
+
+/// Is `candidate` an index file INSIDE the target folder, rather than
+/// the target itself under some extension?
+fn is_index_of(candidate: &str, target: &str) -> bool {
+    candidate
+        .strip_prefix(target)
+        .and_then(|rest| rest.strip_prefix(['/', '\\']))
+        .is_some_and(|name| name.starts_with("index."))
+}
+
+/// The `main` a package's `package.json` declares, if it declares a
+/// usable one.
+fn manifest_main(
+    load: &dyn Fn(&str) -> Option<String>,
+    filesystem: &dyn SourceFs,
+    target: &str,
+    search: &mut Vec<String>,
+) -> Option<String> {
+    let manifest = filesystem.join(&[target, "package.json"]);
     search.push(manifest.clone());
     let text = load(&manifest)?;
     let main = serde_json::from_str::<serde_json::Value>(&text)
@@ -553,12 +645,5 @@ fn resolve_in_pkg_dir(
     if main.is_empty() {
         return None;
     }
-    let main_path = filesystem.join(&[&target, &main]);
-    for candidate in build_potentials(&main_path, implicit_ext) {
-        search.push(candidate.clone());
-        if let Some(src) = load(&candidate) {
-            return Some((candidate, src));
-        }
-    }
-    None
+    Some(main)
 }

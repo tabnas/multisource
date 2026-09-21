@@ -301,3 +301,130 @@ fn the_package_resolver_reads_real_node_modules() {
 
     std::fs::remove_dir_all(&dir).expect("the scratch folder is removed");
 }
+
+/// The preload workflow exists so a parse can run with the files gone,
+/// and a preloaded source may itself hold a relative reference. That
+/// needs the membership test behind the base to consult the preload as
+/// well as the filesystem: consulting only the filesystem made the
+/// source look like a FOLDER, and `./child.jsonic` was then searched for
+/// beneath `main.jsonic` rather than beside it.
+#[test]
+fn a_preloaded_source_resolves_its_relative_references_with_the_files_gone() {
+    use tabnas_multisource::{preload_files, PreloadOptions};
+
+    let dir = common::scratch_dir("preload-relative");
+    let tree = dir.join("t");
+    std::fs::create_dir_all(&tree).expect("a scratch folder");
+    std::fs::write(tree.join("main.jsonic"), r#"{x:@"./child.jsonic"}"#).expect("a scratch file");
+    std::fs::write(tree.join("child.jsonic"), "{c:1}").expect("a scratch file");
+
+    let filemap = preload_files(
+        &PreloadOptions::new([dir.to_string_lossy().into_owned()])
+            .with_ext([".jsonic"])
+            .with_recursive(true),
+    );
+    assert_eq!(filemap.len(), 2, "{filemap:?}");
+
+    std::fs::remove_dir_all(&dir).expect("the scratch folder is removed");
+
+    let parser = make_with(
+        MultiSourceOptions::new(FileResolver::new().with_preload(filemap))
+            .with_path(tree.to_string_lossy().into_owned()),
+    );
+    assert_eq!(
+        to_json(
+            &parser
+                .parse(r#"@"main.jsonic""#)
+                .expect("the preloaded source and its relative reference both load")
+        ),
+        serde_json::json!({"x":{"c":1.0}})
+    );
+}
+
+/// A package that declares a `main` AND ships an `index.jsonic` is a
+/// normal layout, and Node's `require.resolve` -- the resolver the
+/// canonical TypeScript delegates to -- reads the manifest before it
+/// looks for an index. Measured against Node 24:
+/// `require.resolve('bothpkg')` returns `bothpkg/main.jsonic`.
+#[test]
+fn a_package_prefers_its_declared_main_over_its_index() {
+    use tabnas_multisource::PkgResolver;
+
+    let dir = common::scratch_dir("pkg-main");
+    let pkg = dir.join("node_modules").join("bothpkg");
+    std::fs::create_dir_all(&pkg).expect("a scratch package");
+    std::fs::write(pkg.join("package.json"), r#"{"main":"main.jsonic"}"#).expect("a manifest");
+    std::fs::write(pkg.join("main.jsonic"), "{z:11}").expect("the declared main");
+    std::fs::write(pkg.join("index.jsonic"), "{i:5}").expect("an index beside it");
+
+    let parser = make_with(MultiSourceOptions::new(
+        PkgResolver::new().with_paths([dir.to_string_lossy().into_owned()]),
+    ));
+    assert_eq!(
+        to_json(
+            &parser
+                .parse(r#"{c:@"bothpkg"}"#)
+                .expect("the package resolves")
+        )["c"],
+        serde_json::json!({"z":11.0}),
+        "the declared main wins, as require.resolve chooses it"
+    );
+
+    std::fs::remove_dir_all(&dir).expect("the scratch folder is removed");
+}
+
+/// The directory of a bare relative filename is EMPTY, which is what the
+/// canonical resolver's `Path.parse(path).dir` returns for it (measured
+/// against Node 24: `''`) and what `source_dir` returns. Falling back to
+/// the filename made a source its own folder, so a reference beside it
+/// was resolved beneath it.
+#[test]
+fn the_directory_of_a_bare_filename_is_empty_as_in_the_canonical_resolver() {
+    use tabnas_multisource::{source_dir, OsFs, SourceFs};
+
+    assert_eq!(OsFs.dir("main.jsonic"), "");
+    assert_eq!(OsFs.dir("main.jsonic"), source_dir("main.jsonic"));
+    assert_eq!(OsFs.dir("a/main.jsonic"), "a");
+    assert_eq!(OsFs.dir("/a/main.jsonic"), "/a");
+    // A root is its own parent, which is what stops an ancestor walk.
+    assert_eq!(OsFs.dir("/"), "/");
+}
+
+/// And the consequence, through the resolver itself on the real
+/// filesystem: a source named by a bare filename resolves a reference
+/// beside it from the working directory, not from under itself.
+#[test]
+fn a_bare_filename_source_resolves_its_neighbour_from_the_working_directory() {
+    use std::collections::BTreeMap;
+    use tabnas::Value;
+    use tabnas_multisource::{MultiSourceOptions, ResolverInput};
+
+    let mut preload = BTreeMap::new();
+    preload.insert("main.jsonic".to_string(), "{}".to_string());
+    let resolver = FileResolver::new().with_preload(preload);
+
+    let mut entry = indexmap::IndexMap::new();
+    entry.insert("path".to_string(), Value::String("main.jsonic".to_string()));
+    let mut meta = indexmap::IndexMap::new();
+    meta.insert("multisource".to_string(), Value::object(entry));
+    let meta = Value::object(meta);
+
+    let options = MultiSourceOptions::default();
+    let input = ResolverInput {
+        options: &options,
+        meta: &meta,
+    };
+
+    let resolution = tabnas_multisource::Resolver::resolve(&resolver, Some("child.jsonic"), &input);
+    let cwd = std::env::current_dir().expect("a working directory");
+    assert_eq!(
+        resolution.spec.full.as_deref(),
+        Some(
+            cwd.join("child.jsonic")
+                .to_string_lossy()
+                .into_owned()
+                .as_str()
+        ),
+        "a neighbour of a bare-named source is not beneath it"
+    );
+}

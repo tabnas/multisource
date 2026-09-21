@@ -53,6 +53,23 @@ pub trait SourceFs: Send + Sync {
     /// The canonical lookup form of a possibly relative path.
     fn canon(&self, path: &str) -> String;
 
+    /// The path `path` names once every link on the way to it has been
+    /// followed, which is what a sandbox root has to be compared
+    /// against: a purely lexical comparison answers for the path as
+    /// written, and a later read follows the links.
+    ///
+    /// `None` means the path cannot be reduced to a real one and must
+    /// therefore be refused rather than guessed at: a dangling or
+    /// looping symbolic link is the case, and its target could come
+    /// into existence before the read.
+    ///
+    /// The default is the lexical [`SourceFs::canon`], which is exact
+    /// for a filesystem that has no links at all, such as [`MapFs`].
+    /// [`OsFs`] overrides it, because the real one does.
+    fn real_path(&self, path: &str) -> Option<String> {
+        Some(self.canon(path))
+    }
+
     /// Whether this filesystem addresses files by NATIVE absolute
     /// paths, as [`OsFs`] does, rather than by relative,
     /// slash-separated ones.
@@ -109,11 +126,19 @@ impl SourceFs for OsFs {
     }
 
     fn dir(&self, path: &str) -> String {
-        Path::new(path)
-            .parent()
-            .map(|parent| parent.to_string_lossy().into_owned())
-            .filter(|parent| !parent.is_empty())
-            .unwrap_or_else(|| path.to_string())
+        match Path::new(path).parent() {
+            // A bare relative name such as `main.jsonic` has an EMPTY
+            // parent, and empty is the answer: the canonical resolver
+            // reads `Path.parse(path).dir`, which is `''` for that path,
+            // and `source_dir` returns the same. Discarding it and
+            // falling back to the filename made the file its own
+            // directory, so a reference beside it was searched for at
+            // `main.jsonic/child.jsonic`.
+            Some(parent) => parent.to_string_lossy().into_owned(),
+            // A root has no parent: it is its own directory, which is
+            // also what stops an ancestor walk.
+            None => path.to_string(),
+        }
     }
 
     fn native_paths(&self) -> bool {
@@ -121,16 +146,62 @@ impl SourceFs for OsFs {
     }
 
     fn canon(&self, path: &str) -> String {
-        let candidate = Path::new(path);
-        let absolute = if candidate.is_absolute() {
-            candidate.to_path_buf()
-        } else {
-            match std::env::current_dir() {
-                Ok(cwd) => cwd.join(candidate),
-                Err(_) => candidate.to_path_buf(),
+        lexical(&absolute(path)).to_string_lossy().into_owned()
+    }
+
+    fn real_path(&self, path: &str) -> Option<String> {
+        let absolute = lexical(&absolute(path));
+
+        // The whole path exists: the kernel has just followed every
+        // link in it for us, so this is the path a read would reach.
+        if let Ok(real) = std::fs::canonicalize(&absolute) {
+            return Some(real.to_string_lossy().into_owned());
+        }
+
+        // It does not, which is the ordinary case while a reference is
+        // still being searched for. Resolve the deepest part that DOES
+        // exist and re-attach the rest, so the answer is real as far as
+        // the filesystem goes and lexical only beyond it, where there
+        // is nothing yet to follow.
+        let mut prefix = absolute.clone();
+        let mut rest: Vec<std::ffi::OsString> = Vec::new();
+        loop {
+            if let Ok(real) = std::fs::canonicalize(&prefix) {
+                let mut resolved = real;
+                for name in rest.iter().rev() {
+                    resolved.push(name);
+                }
+                return Some(resolved.to_string_lossy().into_owned());
             }
-        };
-        lexical(&absolute).to_string_lossy().into_owned()
+            // The component is THERE but did not resolve: a dangling or
+            // looping link. Its target may exist by the time anything
+            // reads it, and nothing here can say where that target
+            // would be, so refuse rather than answer.
+            if std::fs::symlink_metadata(&prefix).is_ok() {
+                return None;
+            }
+            let (Some(parent), Some(name)) = (prefix.parent(), prefix.file_name()) else {
+                // Nothing of the path exists, not even its root, so
+                // there is no link in it to follow.
+                return Some(absolute.to_string_lossy().into_owned());
+            };
+            rest.push(name.to_os_string());
+            prefix = parent.to_path_buf();
+        }
+    }
+}
+
+/// `path` as an absolute path, against the working directory when it is
+/// relative. Purely textual: nothing is read.
+fn absolute(path: &str) -> PathBuf {
+    let candidate = Path::new(path);
+    if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(candidate),
+            Err(_) => candidate.to_path_buf(),
+        }
     }
 }
 
@@ -280,10 +351,10 @@ pub(crate) fn clean(path: &str) -> String {
 /// Resolve `.` and `..` without touching the filesystem.
 ///
 /// Deliberately lexical: `std::fs::canonicalize` requires the path to
-/// exist, and resolution asks about paths that mostly do not. It also
-/// follows symbolic links, which would let a link inside a sandbox root
-/// resolve to a target outside it while the confinement check, run on
-/// the resolved path, still said yes.
+/// exist, and resolution asks about paths that mostly do not. That makes
+/// it the wrong answer for a confinement check, which has to know where
+/// the links go: [`SourceFs::real_path`] is what that check uses, and it
+/// falls back to this only for the part of a path that is not there yet.
 fn lexical(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
@@ -308,6 +379,11 @@ fn lexical(path: &Path) -> PathBuf {
 /// Both are compared after lexical resolution, so `root/../etc` is
 /// rejected rather than accepted on the strength of its prefix. Segment
 /// comparison is what stops `/srv/appdata` passing for `/srv/app`.
+///
+/// This is the comparison only. A caller confining reads to a root must
+/// pass paths that [`SourceFs::real_path`] has already resolved, or a
+/// symbolic link inside the root will pass a check its target could
+/// never pass.
 pub(crate) fn within_root(candidate: &str, root: &str, os_paths: bool) -> bool {
     let (candidate, root) = if os_paths {
         (

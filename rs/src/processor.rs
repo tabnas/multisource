@@ -82,20 +82,21 @@ pub fn parse_nested(
         return parser.parse_with_meta(src, meta.clone());
     }
 
-    let owned_parser = Arc::clone(parser);
-    let owned_src = src.to_string();
-    let owned_meta = meta.clone();
-    let spawned = std::thread::Builder::new()
-        .name("tabnas-multisource".to_string())
-        .stack_size(SEGMENT_STACK)
-        .spawn(move || owned_parser.parse_with_meta(&owned_src, owned_meta));
-
-    let Ok(handle) = spawned else {
-        // No thread to be had: carry on where we are rather than fail a
-        // parse that would have succeeded. The depth cap still bounds
-        // the chain, and a caller that cannot spawn a thread has a
-        // larger problem than this one.
-        return parser.parse_with_meta(src, meta.clone());
+    let handle = match spawn_segment(parser, src, meta) {
+        Ok(handle) => handle,
+        Err(reason) => {
+            // No thread to be had. Carrying on where we are is not the
+            // safe fallback it looks like: the measurements this module
+            // records put about six levels in a spawned thread's stack,
+            // well inside the default `max_depth`, so resuming the
+            // chain here is how an ACYCLIC document aborts the process,
+            // and it does it exactly when the machine is already under
+            // pressure. Fail the parse instead, with a reason.
+            let mut error = TabnasError::new("internal", src, src, 0, 1, 1);
+            error.detail =
+                format!("the nested parse could not be given a thread to run on: {reason}");
+            return Err(error);
+        }
     };
 
     match handle.join() {
@@ -109,6 +110,37 @@ pub fn parse_nested(
             Err(error)
         }
     }
+}
+
+/// Run one segment of the chain on a thread of its own.
+///
+/// A seam rather than a call, so the test below can exercise the failure
+/// path without having to exhaust the process's threads to reach it.
+fn spawn_segment(
+    parser: &Arc<Tabnas>,
+    src: &str,
+    meta: &Value,
+) -> std::io::Result<std::thread::JoinHandle<Result<Value, TabnasError>>> {
+    #[cfg(test)]
+    {
+        if REFUSE_SPAWN.with(std::cell::Cell::get) {
+            return Err(std::io::Error::other("refused by a test"));
+        }
+    }
+
+    let owned_parser = Arc::clone(parser);
+    let owned_src = src.to_string();
+    let owned_meta = meta.clone();
+    std::thread::Builder::new()
+        .name("tabnas-multisource".to_string())
+        .stack_size(SEGMENT_STACK)
+        .spawn(move || owned_parser.parse_with_meta(&owned_src, owned_meta))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Set by the test that pins the spawn-failure path.
+    static REFUSE_SPAWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 impl fmt::Debug for ProcessorInput<'_> {
@@ -204,4 +236,40 @@ fn strict_json() -> &'static Tabnas {
     use std::sync::OnceLock;
     static PARSER: OnceLock<Tabnas> = OnceLock::new();
     PARSER.get_or_init(tabnas_jsonic::make_json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A process at its thread limit must not resume the nested chain on
+    /// the current stack. Six levels fit a spawned thread's two
+    /// megabytes, and `max_depth` allows sixty-four, so the fallback
+    /// turned "no thread available" into an aborted process for a
+    /// perfectly acyclic document. It is a parse error instead.
+    #[test]
+    fn a_segment_that_cannot_be_spawned_fails_the_parse() {
+        let parser = Arc::new(crate::make());
+        let meta = Value::Undefined;
+
+        REFUSE_SPAWN.with(|refuse| refuse.set(true));
+        let error = parse_nested(&parser, "a:1", &meta, 1)
+            .expect_err("a segment with no thread to run on is an error");
+        assert!(!error.code.is_empty(), "the failure carries a code");
+        assert!(
+            error.detail.contains("thread"),
+            "the failure says why: {}",
+            error.detail
+        );
+
+        // A level that shares the caller's stack is unaffected: it never
+        // asks for a thread.
+        assert!(parse_nested(&parser, "a:1", &meta, 0).is_ok());
+
+        REFUSE_SPAWN.with(|refuse| refuse.set(false));
+        assert!(
+            parse_nested(&parser, "a:1", &meta, 1).is_ok(),
+            "and with a thread to be had the segment runs"
+        );
+    }
 }

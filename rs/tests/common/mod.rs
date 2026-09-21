@@ -23,6 +23,46 @@ pub fn repo_root() -> &'static Path {
         .expect("rs/ has a parent")
 }
 
+/// A fresh, empty scratch directory under the system temporary folder,
+/// for a test that needs a REAL filesystem rather than a map. The name
+/// carries the process, the thread and a counter, so two tests running
+/// at once never share one.
+pub fn scratch_dir(label: &str) -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let dir = std::env::temp_dir().join(format!(
+        "tabnas-multisource-{label}-{}-{:?}-{}",
+        std::process::id(),
+        std::thread::current().id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("a scratch folder");
+    dir
+}
+
+/// A fresh scratch directory BELOW the working directory, returned both
+/// absolutely and as the relative path that names it from there. A test
+/// of a relative root needs one: the working directory of a test binary
+/// is the crate root, and moving it is process-global, which a suite
+/// running tests in parallel cannot do.
+pub fn cwd_scratch_dir(label: &str) -> (std::path::PathBuf, String) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let relative = format!(
+        "target/scratch/{label}-{}-{:?}-{}",
+        std::process::id(),
+        std::thread::current().id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    );
+    let absolute = std::env::current_dir()
+        .expect("a working directory")
+        .join(&relative);
+    let _ = std::fs::remove_dir_all(&absolute);
+    std::fs::create_dir_all(&absolute).expect("a scratch folder");
+    (absolute, relative)
+}
+
 /// A fresh parser over the in-memory source set a fixture row names,
 /// plus the small set of engine options a row may carry.
 pub fn parser_for(options: &Json) -> Result<Tabnas, Failure> {

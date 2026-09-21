@@ -1216,3 +1216,103 @@ fn the_base_path_may_come_from_the_parse_metadata() {
         .expect("the metadata base resolves the reference");
     assert_eq!(to_json(&value), j!({"x":{"a":{"b":1}}}));
 }
+
+/// A numeric reference names the source JavaScript's `'' + value` names,
+/// which is what the canonical `resolvePathSpec` spells. Measured
+/// against Node 24: `'' + 100000000000000000000` is
+/// `100000000000000000000`, and `'' + 1e21` is `1e+21`.
+///
+/// This cannot be a shared fixture row. Go renders the same reference
+/// with `fmt.Sprintf("%v", ...)`, measured as `1e+20` for the first case
+/// (`go run` on go1.25), so the row would fail the Go suite while
+/// passing TypeScript's.
+#[test]
+fn a_numeric_reference_spells_itself_as_javascript_does() {
+    // A numeric reference has no extension, so its source is raw text:
+    // the content of each is the name of the key it proves was chosen.
+    let parser = make_with(MultiSourceOptions::new(sources([
+        ("100000000000000000000", "big"),
+        ("9223372036854775807", "saturated"),
+        ("9223372036854776000", "rounded"),
+        ("12", "small"),
+        ("0.5", "fraction"),
+        ("1e+21", "exponent"),
+        ("1e-7", "tiny"),
+    ])));
+
+    let cases: [(&str, serde_json::Value); 6] = [
+        ("x:@{path:100000000000000000000}", j!({"x":"big"})),
+        // `number as i64` saturated here, and named `9223372036854775807`.
+        ("x:@{path:9223372036854775807}", j!({"x":"rounded"})),
+        ("x:@{path:12}", j!({"x":"small"})),
+        ("x:@{path:0.5}", j!({"x":"fraction"})),
+        ("x:@{path:1e21}", j!({"x":"exponent"})),
+        ("x:@{path:1e-7}", j!({"x":"tiny"})),
+    ];
+    for (src, want) in cases {
+        assert_eq!(
+            to_json(
+                &parser
+                    .parse(src)
+                    .unwrap_or_else(|error| panic!("{src}: {error}"))
+            ),
+            want,
+            "{src}"
+        );
+    }
+}
+
+/// One instance parses from several threads at once, and a nested
+/// failure carries its own report out. The report a load re-raises is
+/// recorded by the nested parse (on the segment thread, at that), so a
+/// single shared slot let one parse hand another parse's path, search
+/// list or loop to the caller: same code, wrong document.
+#[test]
+fn concurrent_failing_parses_keep_their_own_reports() {
+    let parser = Arc::new(make_with(MultiSourceOptions::new(sources([
+        ("one.jsonic", r#"{a:@"missing-one.jsonic"}"#),
+        ("two.jsonic", r#"{b:@"missing-two.jsonic"}"#),
+        ("loop-one.jsonic", r#"{a:@"loop-one.jsonic"}"#),
+        ("loop-two.jsonic", r#"{b:@"loop-two.jsonic"}"#),
+    ]))));
+
+    let cases: [(&str, &str, &str); 4] = [
+        ("one.jsonic", "multisource_not_found", "missing-one.jsonic"),
+        ("two.jsonic", "multisource_not_found", "missing-two.jsonic"),
+        ("loop-one.jsonic", "multisource_cycle", "loop-one.jsonic"),
+        ("loop-two.jsonic", "multisource_cycle", "loop-two.jsonic"),
+    ];
+
+    let mut threads = Vec::new();
+    for (source, code, wanted) in cases {
+        for _ in 0..3 {
+            let parser = Arc::clone(&parser);
+            threads.push(std::thread::spawn(move || {
+                let src = format!(r#"x:@"{source}""#);
+                let other = match wanted {
+                    "missing-one.jsonic" => "missing-two.jsonic",
+                    "missing-two.jsonic" => "missing-one.jsonic",
+                    "loop-one.jsonic" => "loop-two.jsonic",
+                    _ => "loop-one.jsonic",
+                };
+                for _ in 0..150 {
+                    let error = parser.parse(&src).expect_err("the nested load fails");
+                    assert_eq!(error.code, code, "{src}");
+                    assert!(
+                        error.hint.contains(wanted),
+                        "{src} must report {wanted}, not: {}",
+                        error.hint
+                    );
+                    assert!(
+                        !error.hint.contains(other),
+                        "{src} must not report {other}: {}",
+                        error.hint
+                    );
+                }
+            }));
+        }
+    }
+    for thread in threads {
+        thread.join().expect("every parse finished");
+    }
+}

@@ -13,7 +13,7 @@ contract. This file covers only what is specific to this crate.
 | `src/resolver.rs` | `MapResolver`, `FileResolver`, `PkgResolver`, and the root confinement |
 | `src/processor.rs` | the `Processor` trait, the three default processors, and `parse_nested` |
 | `src/preload.rs` | `PreloadOptions` and the folder scan |
-| `src/vfs.rs` | `SourceFs`, `OsFs`, `MapFs`, path cleaning and `within_root` |
+| `src/vfs.rs` | `SourceFs`, `OsFs`, `MapFs`, path cleaning, `real_path` and `within_root` |
 | `tests/parity_test.rs` | every `../test/spec/*.tsv` fixture through `tabnas_support::Runner::new_with_row`, a fresh parser per row from its `opts` column |
 | `tests/multisource_test.rs` | the in-language port of `go/multisource_test.go`, `go/{cycle,deps,nested,colon_chain}_test.go` and the parts of `ts/test/multisource.test.ts` a fixture cannot express |
 | `tests/file_corpus_test.rs` | the real-filesystem cases over the same `ts/test/*` files the canonical suite loads, plus the package resolver and the preload scan on disk |
@@ -92,6 +92,14 @@ chain is bounded by `MultiSourceOptions::max_depth` rather than by
 whatever stack the caller happened to have. Go needs none of this
 because a goroutine stack grows.
 
+A segment that cannot be given a thread FAILS the parse. Resuming the
+chain on the current stack reads like the safe fallback and is not one:
+six levels fit the stack a spawned thread gets, and `max_depth` allows
+sixty-four, so the fallback aborted the process for an acyclic document
+exactly when the machine was already out of threads. `spawn_segment` is
+the seam the unit test in `src/processor.rs` uses to reach that path
+without exhausting anything.
+
 ### The report slot
 
 A nested parse RETURNS its error rather than throwing it, and
@@ -102,6 +110,17 @@ the bag as a diagnostic is raised and hands it back when the same code
 comes back, so the caller reads the innermost report, which is what the
 TypeScript exception carries out. It is TAKEN, not read, so a report is
 used once.
+
+Each nested load gets its OWN slot, keyed by a ticket the loading action
+mints and threads to the nested parse in `meta.multisource.report`. One
+slot per instance was wrong: an instance is shareable between threads
+and every parse of it went through that one slot, so two failing parses
+crossed and an error named the other document's path, search list or
+loop. Keying on the ticket also survives the segment thread, which a
+thread-local slot would not, and the action drops its ticket on the way
+out whether or not the load failed. `tests/multisource_test.rs`
+`concurrent_failing_parses_keep_their_own_reports` is what keeps this
+honest.
 
 ## Where the Rust shape differs
 

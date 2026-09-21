@@ -192,10 +192,14 @@ loaded value is still hostile text.
   resolver a map, or a `MapFs`, and a document cannot read the disk
   whatever it asks for.
 - **`FileResolver::with_root` and `PkgResolver::with_root` confine every
-  candidate path to one directory.** Paths are compared after `.` and
-  `..` are resolved, by whole segment, and symbolic links are not
-  followed while resolving, so neither `../../etc/passwd` nor a link
-  inside the root reaches outside it. The confinement is additive:
+  candidate path to one directory.** The root and every candidate are
+  resolved through the filesystem first, links and all, then compared by
+  whole segment, so neither `../../etc/passwd` nor a symbolic link
+  inside the root reaches outside it, and a link that resolves to
+  nothing at all is refused rather than guessed at. One thing the check
+  cannot cover is a link created in the instant between the check and
+  the read: a root whose contents another process can write needs a
+  filesystem that enforces the boundary. The confinement is additive:
   without a root the resolvers behave exactly as TypeScript and Go do.
 - **A cycle ends in an error**, and a chain longer than `max_depth` ends
   in one too, so neither hangs nor exhausts the stack.
@@ -278,7 +282,9 @@ has no way to say what JavaScript says. The measured list is in
 - **There is no `js` kind**, for the reason given earlier.
 - **A chain of sources is capped** at `max_depth`, and every second
   level of nesting moves to a fresh thread with a large stack, so a long
-  chain cannot exhaust the caller's stack.
+  chain cannot exhaust the caller's stack. A level that cannot be given
+  a thread fails the parse, rather than resuming the chain on a stack
+  too small to hold it.
 
 ## Build and test
 

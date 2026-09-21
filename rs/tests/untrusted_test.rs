@@ -290,3 +290,141 @@ fn an_empty_source_resolves() {
         });
     }
 }
+
+/// The root confinement has to hold against a REAL filesystem, not only
+/// against the in-memory map: a map has no symbolic links, so it cannot
+/// exercise the guarantee at all. Here a link inside the root points at a
+/// directory outside it, and a second link points straight at a file
+/// outside it. Neither may be readable through the root.
+#[cfg(unix)]
+#[test]
+fn a_symlink_cannot_leave_the_root_on_a_real_filesystem() {
+    let base = common::scratch_dir("symlink-root");
+    let root = base.join("root");
+    let outside = base.join("outside");
+    std::fs::create_dir_all(&root).expect("a scratch root");
+    std::fs::create_dir_all(&outside).expect("a scratch outside");
+    std::fs::write(root.join("main.jsonic"), "{ok:1}").expect("a scratch file");
+    std::fs::write(outside.join("secret.jsonic"), "{leak:1}").expect("a scratch file");
+    std::os::unix::fs::symlink(&outside, root.join("link")).expect("a directory link");
+    std::os::unix::fs::symlink(outside.join("secret.jsonic"), root.join("leak.jsonic"))
+        .expect("a file link");
+    std::os::unix::fs::symlink(outside.join("gone.jsonic"), root.join("dangle.jsonic"))
+        .expect("a dangling link");
+
+    let root_path = root.to_string_lossy().into_owned();
+    let parser = make_with(
+        MultiSourceOptions::new(FileResolver::new().with_root(root_path.clone()))
+            .with_path(root_path),
+    );
+
+    assert_eq!(
+        common::to_json(
+            &parser
+                .parse(r#"@"main.jsonic""#)
+                .expect("a real file inside the root still loads")
+        ),
+        serde_json::json!({ "ok": 1.0 })
+    );
+
+    for escape in [
+        r#"x:@"link/secret.jsonic""#,
+        r#"x:@"leak.jsonic""#,
+        r#"x:@"./link/secret.jsonic""#,
+        r#"x:@"dangle.jsonic""#,
+    ] {
+        let error = parser.parse(escape).expect_err("the root holds");
+        assert_eq!(
+            error.code, "multisource_not_found",
+            "{escape} must not escape the root through a link"
+        );
+    }
+
+    std::fs::remove_dir_all(&base).expect("the scratch folder is removed");
+}
+
+/// A root may be spelled relatively, and then it has to name the same
+/// directory a candidate does. The file resolver makes every candidate
+/// absolute through the filesystem, so a root left as written matched
+/// nothing at all and every reference INSIDE the root was reported
+/// missing, which reads as a sandbox that works and is a sandbox that
+/// has locked the door on the house.
+#[test]
+fn a_relative_root_confines_a_real_filesystem_without_hiding_it() {
+    let (base, relative) = common::cwd_scratch_dir("relative-root");
+    let app = base.join("srv").join("app");
+    std::fs::create_dir_all(&app).expect("a scratch root");
+    std::fs::write(app.join("main.jsonic"), r#"{ok:@"./leaf.jsonic"}"#).expect("a scratch file");
+    std::fs::write(app.join("leaf.jsonic"), "{leaf:1}").expect("a scratch file");
+    std::fs::write(base.join("secret.jsonic"), "{leak:1}").expect("a scratch file");
+
+    let root = format!("{relative}/srv/app");
+    let parser = make_with(
+        MultiSourceOptions::new(FileResolver::new().with_root(root.clone())).with_path(root),
+    );
+
+    assert_eq!(
+        common::to_json(
+            &parser
+                .parse(r#"@"main.jsonic""#)
+                .expect("a relative root still reaches its own files")
+        ),
+        serde_json::json!({ "ok": { "leaf": 1.0 } })
+    );
+
+    for escape in [
+        r#"x:@"../../secret.jsonic""#,
+        r#"x:@"/etc/passwd""#,
+        r#"x:@"./sub/../../../secret.jsonic""#,
+    ] {
+        assert_eq!(
+            parser.parse(escape).expect_err("the root holds").code,
+            "multisource_not_found",
+            "{escape} must not escape the root"
+        );
+    }
+
+    std::fs::remove_dir_all(&base).expect("the scratch folder is removed");
+}
+
+/// The package resolver advertises the same confinement, so it gets the
+/// same real filesystem: a vendored `node_modules` entry that is a link
+/// to a package outside the root is not reachable through it.
+#[cfg(unix)]
+#[test]
+fn a_symlink_cannot_leave_the_package_root_either() {
+    let base = common::scratch_dir("symlink-pkg");
+    let root = base.join("root");
+    let modules = root.join("node_modules");
+    let elsewhere = base.join("elsewhere");
+    std::fs::create_dir_all(modules.join("inside")).expect("a vendored package");
+    std::fs::create_dir_all(&elsewhere).expect("a package outside the root");
+    std::fs::write(modules.join("inside").join("index.jsonic"), "{in:1}").expect("a scratch file");
+    std::fs::write(elsewhere.join("index.jsonic"), "{out:1}").expect("a scratch file");
+    std::os::unix::fs::symlink(&elsewhere, modules.join("outside")).expect("a package link");
+
+    let root_path = root.to_string_lossy().into_owned();
+    let parser = make_with(MultiSourceOptions::new(
+        PkgResolver::new()
+            .with_paths([root_path.clone()])
+            .with_root(root_path),
+    ));
+
+    assert_eq!(
+        common::to_json(
+            &parser
+                .parse(r#"x:@"inside""#)
+                .expect("the vendored package is reachable")
+        )["x"],
+        serde_json::json!({ "in": 1.0 })
+    );
+    assert_eq!(
+        parser
+            .parse(r#"x:@"outside""#)
+            .expect_err("the link does not reach out of the root")
+            .code,
+        "multisource_not_found"
+    );
+
+    std::fs::remove_dir_all(&base).expect("the scratch folder is removed");
+}

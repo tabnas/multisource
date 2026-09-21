@@ -36,7 +36,10 @@
 //!   disk at all.
 //! - [`FileResolver::with_root`] confines every candidate path to one
 //!   directory, so `@"../../etc/passwd"` resolves to nothing rather than
-//!   to a file.
+//!   to a file. The root and the candidate are both resolved through the
+//!   filesystem before they are compared, so a symbolic link inside the
+//!   root is judged by where it points; a link created between that
+//!   check and the read is beyond what a resolver can see.
 //! - A cycle between sources raises `multisource_cycle`, and a chain
 //!   longer than [`MultiSourceOptions::max_depth`] raises
 //!   `multisource_depth`, so neither hangs nor overflows the stack.
@@ -694,6 +697,7 @@ fn child_meta(
     resolution: &Resolution,
     parents: &[String],
     dive: Option<&Value>,
+    ticket: &str,
 ) -> Value {
     let mut child = meta_object(parent).cloned().unwrap_or_default();
 
@@ -714,6 +718,9 @@ fn child_meta(
         },
     );
     entry.insert(NESTED_MARK.to_string(), Value::Bool(true));
+    // The slot this nested parse records a diagnostic under, so the
+    // load below reads back its own report and no other parse's.
+    entry.insert(REPORT_TICKET.to_string(), Value::String(ticket.to_string()));
     child.insert(RULE_NAME.to_string(), Value::object(entry));
 
     if let Some(path) = &resolution.spec.path {
@@ -763,8 +770,12 @@ impl NestedParser {
     }
 }
 
-/// The last diagnostic this plugin raised, so that an outer load can
-/// re-raise a nested one unchanged.
+/// A raised diagnostic: its code and the detail bag its message and
+/// hint are rendered from.
+type Report = (String, Vec<(String, Value)>);
+
+/// The diagnostics this plugin has raised inside nested parses, so that
+/// an outer load can re-raise one unchanged.
 ///
 /// In the canonical TypeScript a nested parse throws and the exception
 /// travels out untouched, so the caller reads the innermost report: the
@@ -773,34 +784,60 @@ impl NestedParser {
 /// but whose detail bag it cannot, so the bag is recorded as it is
 /// raised and taken again when the same code comes back.
 ///
-/// It is taken, not read, so a report is used once. Two parses running
-/// at the same time on one instance could in principle swap reports;
-/// both would still carry the right code, and the same nesting that
-/// makes a report worth carrying is the case this gets right.
-/// A raised diagnostic: its code and the detail bag its message and
-/// hint are rendered from.
-type Report = (String, Vec<(String, Value)>);
-
+/// Each nested load gets its OWN slot, keyed by a ticket the loading
+/// action mints and threads to the nested parse through its metadata.
+/// One slot per instance was not enough: this type is shared by every
+/// parse of an instance, and an instance is explicitly shareable
+/// between threads, so two parses failing at the same time overwrote
+/// each other and an error could come back naming the other document's
+/// path, search list or loop. The ticket also survives the segment
+/// thread `processor::parse_nested` runs a level on, which a
+/// thread-local slot would not.
+///
+/// A slot is TAKEN, not read, so a report is used once, and the loading
+/// action drops its ticket whether or not the load failed.
 #[derive(Default)]
 struct LastReport {
-    slot: Mutex<Option<Report>>,
+    slots: Mutex<BTreeMap<String, Report>>,
+    next: std::sync::atomic::AtomicU64,
 }
 
 impl LastReport {
-    fn record(&self, code: &str, details: &[(String, Value)]) {
-        if let Ok(mut slot) = self.slot.lock() {
-            *slot = Some((code.to_string(), details.to_vec()));
+    /// A ticket for one nested load, unique within this instance.
+    fn ticket(&self) -> String {
+        let count = self.next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        format!("{count}")
+    }
+
+    fn record(&self, ticket: &str, code: &str, details: &[(String, Value)]) {
+        if let Ok(mut slots) = self.slots.lock() {
+            slots.insert(ticket.to_string(), (code.to_string(), details.to_vec()));
         }
     }
 
-    fn take(&self, code: &str) -> Option<Vec<(String, Value)>> {
-        let mut slot = self.slot.lock().ok()?;
-        match slot.take() {
+    /// The report a nested parse left under `ticket`, if it carries the
+    /// code that came back. The slot is freed either way.
+    fn take(&self, ticket: &str, code: &str) -> Option<Vec<(String, Value)>> {
+        let mut slots = self.slots.lock().ok()?;
+        match slots.remove(ticket) {
             Some((recorded, details)) if recorded == code => Some(details),
             _ => None,
         }
     }
+
+    /// Drop a ticket whose load did not fail, so a slot cannot outlive
+    /// the parse that minted it.
+    fn discard(&self, ticket: &str) {
+        if let Ok(mut slots) = self.slots.lock() {
+            slots.remove(ticket);
+        }
+    }
 }
+
+/// The metadata key carrying the ticket a nested parse records its
+/// report under. The loading action mints it; the nested parse only
+/// reads it back.
+const REPORT_TICKET: &str = "report";
 
 // ---------------------------------------------------------------------
 // The plugin
@@ -1082,11 +1119,89 @@ fn reference_of(value: &Value) -> Option<String> {
     }
 }
 
+/// JavaScript's `Number::toString` (ECMA-262 6.1.6.1.20), which is what
+/// the canonical `'' + spec.path` spells for a numeric reference, and so
+/// what such a reference names.
+///
+/// Rust's own `f64` formatting differs from it in ways that reach a map
+/// key. `number as i64` SATURATES, so every integral value above
+/// `i64::MAX` became `9223372036854775807` and named the wrong source.
+/// Plain `{}` keeps the sign of negative zero (`-0`, where JavaScript
+/// says `0`) and never switches to exponent form, where JavaScript does
+/// so at `1e21` and at `1e-7`.
+///
+/// The same implementation, for the same reason, is in `tabnas-csv` and
+/// `tabnas-xml`; keep the three in step.
 fn format_number(number: f64) -> String {
-    if number.fract() == 0.0 && number.is_finite() {
-        format!("{}", number as i64)
+    if number.is_nan() {
+        return "NaN".to_string();
+    }
+    // Catches -0.0 as well: JavaScript spells both zeros "0".
+    if number == 0.0 {
+        return "0".to_string();
+    }
+    if number < 0.0 {
+        return format!("-{}", format_number(-number));
+    }
+    if number.is_infinite() {
+        return "Infinity".to_string();
+    }
+
+    // The specification wants the shortest digit string `s` that
+    // round-trips (length `k`), and `n`, the position of the decimal
+    // point relative to it. Rust's `{:e}` yields digits of exactly that
+    // shortest length.
+    let shortest = format!("{number:e}");
+    let shortest_k = shortest
+        .split_once('e')
+        .map(|(mantissa, _)| mantissa.chars().filter(char::is_ascii_digit).count())
+        .expect("a finite f64 always formats with an exponent");
+
+    // Re-render to that same length to settle a tie. Where two digit
+    // strings of length `k` are equally close to `number`, the
+    // specification takes the one ending in an even digit; Rust's
+    // shortest form does not, but its exactly-rounded fixed-precision
+    // form does.
+    let exponential = format!("{:.*e}", shortest_k - 1, number);
+    let (mantissa, exponent) = exponential
+        .split_once('e')
+        .expect("a finite f64 always formats with an exponent");
+    // Rounding can leave trailing zeros (and, on a carry, one digit too
+    // many); dropping them keeps `s` shortest, which is what `k` means.
+    let digits = mantissa
+        .chars()
+        .filter(|digit| *digit != '.')
+        .collect::<String>();
+    let digits = digits.trim_end_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    let k = digits.len() as i32;
+    let n = exponent
+        .parse::<i32>()
+        .expect("a formatted exponent is an integer")
+        + 1;
+
+    // The four cases of the specification, in its order. The range
+    // bounds are `k <= n <= 21`, `0 < n <= 21` and `-6 < n <= 0`.
+    if (k..=21).contains(&n) {
+        // Integral, with n - k trailing zeros to restore.
+        let mut text = digits.to_string();
+        text.push_str(&"0".repeat((n - k) as usize));
+        text
+    } else if (1..=21).contains(&n) {
+        let point = n as usize;
+        format!("{}.{}", &digits[..point], &digits[point..])
+    } else if (-5..=0).contains(&n) {
+        format!("0.{}{}", "0".repeat(-n as usize), digits)
     } else {
-        format!("{number}")
+        // Exponent form. `n - 1` is never 0 here, so the sign is never
+        // "+0".
+        let sign = if n - 1 < 0 { '-' } else { '+' };
+        let power = (n - 1).abs();
+        if k == 1 {
+            format!("{digits}e{sign}{power}")
+        } else {
+            format!("{}.{}e{sign}{power}", &digits[..1], &digits[1..])
+        }
     }
 }
 
@@ -1109,7 +1224,11 @@ fn fail(
     code: &str,
     details: Vec<(String, Value)>,
 ) -> Result<Option<Token>, ActionError> {
-    reports.record(code, &details);
+    // Only a NESTED parse has a ticket, and only a nested report is
+    // ever taken: a top-level failure is raised to the caller whole.
+    if let Some(ticket) = meta_multisource_string(&context.meta, REPORT_TICKET) {
+        reports.record(&ticket, code, &details);
+    }
     match error_token(rule, context) {
         Some(mut token) => {
             token.bad_with_details(code, details);
@@ -1237,7 +1356,8 @@ fn directive_action(
     }
 
     let dive = rule.k.get("path").cloned();
-    let meta = child_meta(&context.meta, &resolution, &parents, dive.as_ref());
+    let ticket = reports.ticket();
+    let meta = child_meta(&context.meta, &resolution, &parents, dive.as_ref(), &ticket);
 
     let Some(parser) = nested.get() else {
         // The prepare hook publishes the instance for every parse whose
@@ -1272,8 +1392,9 @@ fn directive_action(
         // Re-raise the nested report as it was raised, so the caller
         // reads the loop of a cycle or the search paths of a missing
         // source rather than a summary of them, exactly as the
-        // canonical TypeScript exception carries them out.
-        let details = reports.take(&code).unwrap_or_else(|| {
+        // canonical TypeScript exception carries them out. The ticket
+        // is what makes it THIS load's report and no other parse's.
+        let details = reports.take(&ticket, &code).unwrap_or_else(|| {
             vec![
                 ("path".to_string(), Value::String(fullpath)),
                 ("searchstr".to_string(), Value::String(error.detail.clone())),
@@ -1281,6 +1402,9 @@ fn directive_action(
         });
         return fail(reports, rule, context, &code, details);
     }
+
+    // The load succeeded, so nothing will ever ask for its slot.
+    reports.discard(&ticket);
 
     let value = std::mem::replace(&mut resolution.val, Value::Undefined);
 
