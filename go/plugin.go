@@ -4,7 +4,6 @@ package tabnasmultisource
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -74,7 +73,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				// access (order is irrelevant when reading a single key).
 				if m, ok := tabnas.AsStringMap(v); ok {
 					if p, ok := m["path"]; ok {
-						pathStr = fmt.Sprintf("%v", p)
+						pathStr = specPathString(p)
 					}
 				}
 			}
@@ -338,7 +337,6 @@ func metaParents(ctx *jsonic.Context) []string {
 	}
 	return nil
 }
-
 
 // resolveSource resolves a multisource path and returns the processed value.
 //

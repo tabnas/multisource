@@ -162,7 +162,11 @@ package tracks it but differs in scope and idiom:
   `Jsonic.ParseMeta(src, map[string]any)`. The same keys are honoured
   (`multisource.path`, `multisource.deps`, `multisource.parents`, `fs`).
 - **Number type.** Both produce numbers, but Go materialises them as `float64`
-  in `map[string]any`, the jsonic Go default.
+  in `map[string]any`, the jsonic Go default. A non-string `path` in an
+  object-form directive (`@{path: 1000000}`) is coerced the way the canonical
+  coerces it, by ECMAScript `Number::toString` rather than by `%v`, so the
+  same reference names the same source in both runtimes
+  (`jsNumberToString` in `number.go`; `test/spec/numeric-path.tsv`).
 - **Performance.** Go's no-options `Parse` caches a single default parser
   (`sync.Once`) because building the grammar dominates a parse; the TS package
   does not need this because callers reuse a `Tabnas` instance directly.
