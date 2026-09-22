@@ -143,7 +143,7 @@ pub type PathFinder = Arc<dyn Fn(&str) -> String + Send + Sync>;
 /// Resolve references against a filesystem.
 ///
 /// By default that is the real filesystem, with references resolved to
-/// absolute paths. Give it a [`MapFs`] and it touches no disk at all;
+/// absolute paths. Give it a [`crate::MapFs`] and it touches no disk at all;
 /// give it a root and no reference can name anything outside that
 /// directory, however many `..` segments it carries.
 #[derive(Clone, Default)]
