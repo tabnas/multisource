@@ -1222,10 +1222,10 @@ fn the_base_path_may_come_from_the_parse_metadata() {
 /// against Node 24: `'' + 100000000000000000000` is
 /// `100000000000000000000`, and `'' + 1e21` is `1e+21`.
 ///
-/// This cannot be a shared fixture row. Go renders the same reference
-/// with `fmt.Sprintf("%v", ...)`, measured as `1e+20` for the first case
-/// (`go run` on go1.25), so the row would fail the Go suite while
-/// passing TypeScript's.
+/// The shared fixture `test/spec/numeric-path.tsv` holds every runtime
+/// to the same contract. What stays here are the cases a fixture row
+/// cannot carry well: the value an `i64` cast used to saturate at, and
+/// the two points where the canonical switches to exponent form.
 #[test]
 fn a_numeric_reference_spells_itself_as_javascript_does() {
     // A numeric reference has no extension, so its source is raw text:
@@ -1260,6 +1260,36 @@ fn a_numeric_reference_spells_itself_as_javascript_does() {
             "{src}"
         );
     }
+}
+
+/// A directive path that is neither a string nor a number is still
+/// coerced, because the canonical coerces it: `'' + true` is `"true"`,
+/// and a null path is an absent one (`null != spec.path` in
+/// `resolvePathSpec`), which resolves nothing.
+#[test]
+fn a_non_numeric_directive_path_is_coerced_as_javascript_does() {
+    let parser = make_with(MultiSourceOptions::new(sources([
+        ("true", "yes"),
+        ("false", "no"),
+    ])));
+
+    assert_eq!(
+        to_json(&parser.parse("x:@{path:true}").expect("true names a source")),
+        j!({"x":"yes"})
+    );
+    assert_eq!(
+        to_json(
+            &parser
+                .parse("x:@{path:false}")
+                .expect("false names a source")
+        ),
+        j!({"x":"no"})
+    );
+
+    let error = parser
+        .parse("x:@{path:null}")
+        .expect_err("a null path names nothing");
+    assert_eq!(error.code, "multisource_not_found");
 }
 
 /// One instance parses from several threads at once, and a nested

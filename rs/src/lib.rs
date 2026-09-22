@@ -1104,17 +1104,27 @@ fn install_grammar(parser: &mut Tabnas, name: &str) -> Result<(), MultiSourceErr
 
 /// The reference a directive body names: a bare string, or an object
 /// with a `path` key (`@{path:"a.jsonic"}`).
+///
+/// Neither the canonical nor this port requires the value to be a
+/// string, so the coercion decides which source is named and has to be
+/// the canonical one: `'' + spec.path`, whose rules are JavaScript's.
+/// A number goes through [`format_number`]; a boolean is `true` or
+/// `false`; a null is an absent path, which is what the canonical's
+/// `null != spec.path` guard makes of it.
 fn reference_of(value: &Value) -> Option<String> {
+    match value {
+        Value::Object(_) | Value::MapRef(_) => coerce_reference(meta_get(value, "path").as_ref()?),
+        other => coerce_reference(other),
+    }
+}
+
+/// `'' + value` for the one value a directive body can carry.
+fn coerce_reference(value: &Value) -> Option<String> {
     match value {
         Value::String(text) => Some(text.clone()),
         Value::Text(text) => Some(text.string.clone()),
         Value::Number(number) => Some(format_number(*number)),
-        Value::Object(_) | Value::MapRef(_) => match meta_get(value, "path") {
-            Some(Value::String(text)) => Some(text.clone()),
-            Some(Value::Text(text)) => Some(text.string.clone()),
-            Some(Value::Number(number)) => Some(format_number(*number)),
-            _ => None,
-        },
+        Value::Bool(flag) => Some(flag.to_string()),
         _ => None,
     }
 }
