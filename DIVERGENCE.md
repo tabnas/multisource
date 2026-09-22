@@ -34,15 +34,13 @@ the row to delete.
 - **Rust** was executed, by the tests named in each row.
 - **Go** was executed, in this repository, through the same in-memory
   resolver the fixtures use.
-- **TypeScript** could not be executed here: the `@tabnas/*` packages it
-  depends on are unpublished and their sibling checkouts are not built
-  in this environment, and `ts/AGENTS.md` forbids the `npm ci` that
-  would replace the symlinks. Each TypeScript cell is therefore cited to
-  the assertion in the canonical suite that measures it, or, where no
-  assertion covers it, marked as read from `ts/src/multisource.ts` and
-  labelled as such. A cell read from source is a claim about the code,
-  not a measurement, and is written that way rather than dressed up as
-  one.
+- **TypeScript** was executed, by its own suite in a wired checkout
+  (`cd ts && npm test`, with the sibling packages built). Each
+  TypeScript cell is cited to the assertion in the canonical suite that
+  measures it, or, where no assertion covers it, marked as read from
+  `ts/src/multisource.ts` and labelled as such. A cell read from source
+  is a claim about the code, not a measurement, and is written that way
+  rather than dressed up as one.
 
 ## 1. There is no `js` kind
 
@@ -154,7 +152,6 @@ Go port documents in
 |---|---|---|---|
 | a processor entry naming another kind (`{foo: 'jsonic'}`) | the aliased processor runs | the entry cannot be expressed, so the kind falls back to raw text | the aliased processor runs |
 | `map.merge` | called once with the whole enclosing node | called once per key | called once with the whole enclosing node |
-| `x:@{path:100000000000000000000}` | names the source keyed `100000000000000000000` | names the source keyed `1e+20` | names the source keyed `100000000000000000000` |
 
 The first is pinned by
 `a_processor_alias_matches_typescript_where_go_cannot`; its TypeScript
@@ -163,15 +160,10 @@ executed here. The second is pinned by `map_merge_is_used_for_the_splice`
 and is visible in `ts/src/multisource.ts`, which assigns
 `ctx.cfg.map.merge(gp.node, res.val, rule, ctx)` to the grandparent node.
 
-The third is a numeric reference above what `f64` spells exactly. The
-TypeScript cell is read from `ts/src/multisource.ts`, whose
-`resolvePathSpec` converts a numeric `spec.path` with `'' + spec.path`;
-the string that produces was executed under Node 24
-(`'' + 100000000000000000000` is `100000000000000000000`). The Go cell
-was executed here against a memory resolver holding both spellings, and
-the parse returned the source keyed `1e+20`, because `go/plugin.go`
-renders the reference with `fmt.Sprintf("%v", p)`. The Rust cell is
-pinned by `a_numeric_reference_spells_itself_as_javascript_does`. This
-is why the case is a Rust test rather than a row in `test/spec`: a
-shared row carries one expected value, and Go would fail whichever of
-the two it carried.
+A third row stood here until tabnas/multisource#50 was repaired: a
+numeric `path` in an object-form directive, which Go rendered with
+`fmt.Sprintf("%v", p)` and so named `1e+20` where the canonical names
+`100000000000000000000`. Go now spells such a reference the way
+ECMAScript `Number::toString` does, and every runtime is held to it by
+[`test/spec/numeric-path.tsv`](test/spec/numeric-path.tsv), so the row
+is gone rather than merely marked fixed.

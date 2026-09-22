@@ -1,0 +1,17 @@
+input	expected	opts
+# A directive may be written in object form, @{path: ...}, and the path
+# value need not be a string. The canonical coerces it with `'' + spec.path`,
+# which for a number is ECMA-262 Number::toString: exponent form only at
+# 1e21 and 1e-7, and no sign on negative zero. A port that formats the
+# number its own way names a DIFFERENT source, so these rows hold two
+# candidate names and assert which one is loaded.
+x:@{path:100}	{"x":{"a":1}}	{"mem":{"100.jsonic":"a:1"}}
+x:@{path:1000000}	{"x":{"a":1}}	{"mem":{"1000000.jsonic":"a:1","1e+06.jsonic":"a:2"}}
+x:@{path:123456789}	{"x":{"a":1}}	{"mem":{"123456789.jsonic":"a:1","1.23456789e+08.jsonic":"a:2"}}
+x:@{path:1000000000000000}	{"x":{"a":1}}	{"mem":{"1000000000000000.jsonic":"a:1","1e+15.jsonic":"a:2"}}
+x:@{path:100000000000000000000}	{"x":{"a":1}}	{"mem":{"100000000000000000000.jsonic":"a:1","1e+20.jsonic":"a:2"}}
+x:@{path:1000000000000000000000}	{"x":{"a":1}}	{"mem":{"1e+21.jsonic":"a:1"}}
+x:@{path:0.0001}	{"x":"raw"}	{"mem":{"0.0001":"raw","1e-04":"other"}}
+x:@{path:0.00001}	{"x":"raw"}	{"mem":{"0.00001":"raw","1e-05":"other"}}
+x:@{path:-0}	{"x":{"a":1}}	{"mem":{"0.jsonic":"a:1","-0.jsonic":"a:2"}}
+x:@{path:true}	{"x":{"a":1}}	{"mem":{"true.jsonic":"a:1"}}

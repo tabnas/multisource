@@ -81,11 +81,9 @@ impl PreloadOptions {
 /// ```
 /// use tabnas_multisource::{preload_files_with, MapFs, PreloadOptions};
 ///
-/// fn main() {
-///     let disk = MapFs::from([("conf/a.jsonic", "a:1"), ("conf/note.txt", "skip")]);
-///     let loaded = preload_files_with(&PreloadOptions::new(["conf"]), &disk);
-///     assert_eq!(loaded.keys().collect::<Vec<_>>(), vec!["conf/a.jsonic"]);
-/// }
+/// let disk = MapFs::from([("conf/a.jsonic", "a:1"), ("conf/note.txt", "skip")]);
+/// let loaded = preload_files_with(&PreloadOptions::new(["conf"]), &disk);
+/// assert_eq!(loaded.keys().collect::<Vec<_>>(), vec!["conf/a.jsonic"]);
 /// ```
 pub fn preload_files(options: &PreloadOptions) -> BTreeMap<String, String> {
     preload_files_with(options, &OsFs)

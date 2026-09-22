@@ -68,7 +68,7 @@ impl ProcessorInput<'_> {
 
 /// Parse `src` as a source nested `depth` levels inside the document.
 ///
-/// Every [`SEGMENT`] levels the parse is run on a fresh thread with a
+/// Every `SEGMENT` levels the parse is run on a fresh thread with a
 /// large stack and joined, so a long chain of sources cannot exhaust
 /// the caller's stack. The call is synchronous either way: nothing
 /// outlives it, and the value comes back on the caller's thread.

@@ -105,6 +105,36 @@ fn the_file_kinds_select_their_processors() {
     );
 }
 
+/// The rest of the TypeScript `file-kind` test: `k04.jsc` is a `.jsc`
+/// source that itself pulls a `.jsonic`, a `.js` and a `.json` file,
+/// each by a path relative to itself, so one reference exercises the
+/// kind table over real files.
+///
+/// The `d` slot is where this port and the canonical part company, and
+/// deliberately: there is no `js` kind here, so the module is read as
+/// text rather than executed. The canonical gives `{"e":3}`. See
+/// `../DIVERGENCE.md` section 1 and `tests/divergence_test.rs`.
+#[test]
+fn a_jsc_source_loads_the_tree_of_kinds_beneath_it() {
+    let parser = file_parser();
+    let value = parser
+        .parse(r#"@"k04.jsc""#)
+        .expect("the chain of files loads");
+    let json = to_json(&value);
+
+    assert_eq!(json["a"], serde_json::json!(1.0));
+    assert_eq!(json["b"], serde_json::json!({"c":2.0}));
+    assert_eq!(json["f"], serde_json::json!({"g":4.0}));
+    assert_eq!(
+        json["d"],
+        serde_json::json!(std::fs::read_to_string(
+            std::path::Path::new(&ts_test_dir()).join("k02.js")
+        )
+        .expect("k02.js is on disk")),
+        "a js source is text here, not the module's exports"
+    );
+}
+
 /// Ports the TypeScript `file-pathfinder` test: the pathfinder rewrites
 /// the reference before it is resolved.
 #[test]
