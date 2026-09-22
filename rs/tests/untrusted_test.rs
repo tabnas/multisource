@@ -9,6 +9,7 @@
 mod common;
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
 use tabnas_multisource::{
@@ -101,9 +102,10 @@ fn a_very_long_reference_is_reported_not_crashed() {
 
 #[test]
 fn a_very_long_source_is_read_not_crashed() {
-    let items: String = (0..20_000)
-        .map(|index| format!("k{index}:{index},"))
-        .collect();
+    let items: String = (0..20_000).fold(String::new(), |mut items, index| {
+        let _ = write!(items, "k{index}:{index},");
+        items
+    });
     let parser = make_with(MultiSourceOptions::new(MapResolver::from([(
         "big.jsonic",
         items.as_str(),
@@ -163,9 +165,10 @@ fn a_wide_diamond_is_reuse_and_stays_linear() {
     let width = 200;
     let mut files: BTreeMap<String, String> = BTreeMap::new();
     files.insert("base.jsonic".to_string(), "x:1".to_string());
-    let body: String = (0..width)
-        .map(|index| format!(r#"k{index}:@"base.jsonic","#))
-        .collect();
+    let body: String = (0..width).fold(String::new(), |mut body, index| {
+        let _ = write!(body, r#"k{index}:@"base.jsonic","#);
+        body
+    });
     files.insert("wide.jsonic".to_string(), body);
 
     let parser = make_with(MultiSourceOptions::new(MapResolver::from_map(files)));
