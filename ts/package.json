@@ -27,7 +27,7 @@
     "pretest-some": "npm run build",
     "test-some": "node --enable-source-maps --test-name-pattern=\"$npm_config_pattern\" --test \"dist-test/*.test.js\"",
     "watch": "tsc --build src test -w",
-    "build": "tsc --build src test",
+    "build": "tsc --build src && tsc --build test",
     "clean": "rm -rf dist dist-test node_modules yarn.lock package-lock.json",
     "reset": "npm run clean && npm i && npm run build && npm test",
     "repo-tag": "REPO_VERSION=`node -e \"console.log(require('./package').version)\"` && echo TAG: ts/v$REPO_VERSION && git commit -a -m v$REPO_VERSION && git push && git tag ts/v$REPO_VERSION && git push origin ts/v$REPO_VERSION;",
@@ -60,10 +60,10 @@
     "@tabnas/path": "*",
     "@tabnas/railroad": "*",
     "@tabnas/support": "*",
-    "@types/node": "^25.6.0",
+    "@types/node": "^26.6.2",
     "jsonic-multisource-pkg-test": "0.0.1",
-    "memfs": "4.57.2",
-    "typescript": "6.0.3"
+    "memfs": "4.79.0",
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "@tabnas/directive": ">=0",
