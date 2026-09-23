@@ -5,6 +5,17 @@
   "description": "Multi-source document assembly for the tabnas engine: resolves and merges included sources.",
   "engine": "@tabnas/parser",
   "specDir": "test/spec",
+  "clib": {
+    "dir": "go/clib",
+    "library": "libtabnasmultisource",
+    "abi": "v1",
+    "errorCodes": [
+      "usage",
+      "grammar",
+      "handle",
+      "internal"
+    ]
+  },
   "errorCodes": [
     "multisource_not_found",
     "multisource_cycle"
