@@ -26,6 +26,11 @@ dependency change.
   however direct the route through one looks.
 - **This repository's own version sites are not dependencies.** They
   include the root entry of its own lockfile. A release bump moves them.
+- **Versions track the latest release.** Every dependency is kept at
+  its latest published version, and none is held on an older one. That
+  is the maintainer's standing instruction, so moving a dependency to
+  its latest version needs no further one. Holding a dependency back,
+  or adding, removing or re-pointing one, still does.
 
 ## What this project is
 
@@ -209,7 +214,7 @@ and here rather than silently diverging.
 TypeScript (from `ts/`):
 
 ```bash
-npm run build          # tsc --build src test  → dist/ and dist-test/
+npm run build          # tsc --build src && tsc --build test  → dist/ and dist-test/
 npm test               # node --test over dist-test/*.test.js
 npm run test-cov       # coverage → coverage/lcov.info
 ```
