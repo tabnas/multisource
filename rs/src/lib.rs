@@ -80,7 +80,7 @@ pub use vfs::{os_fs, DirEntry, MapFs, OsFs, SharedFs, SourceFs};
 /// orchestrator rewrites all of them, and `tests/version_test.rs` fails
 /// the build if they drift. Mirrors `VERSION` in `ts/src/multisource.ts`
 /// and `const VERSION` in `go/multisource.go`.
-pub const VERSION: &str = "0.5.7";
+pub const VERSION: &str = "0.5.8";
 
 /// An unknown or missing source-reference extension.
 pub const NONE: &str = "";
