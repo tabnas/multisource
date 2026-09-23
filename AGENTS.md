@@ -214,7 +214,7 @@ and here rather than silently diverging.
 TypeScript (from `ts/`):
 
 ```bash
-npm run build          # tsc --build src test  → dist/ and dist-test/
+npm run build          # tsc --build src && tsc --build test  → dist/ and dist-test/
 npm test               # node --test over dist-test/*.test.js
 npm run test-cov       # coverage → coverage/lcov.info
 ```
