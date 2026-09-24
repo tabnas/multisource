@@ -652,12 +652,12 @@ the closure, builds the TS siblings in topo order (with
 before `go build` / `go test`. Because `@tabnas/debug` is a
 devDependency, the composition test runs as part of `npm test`. Neither
 job publishes to npm; `.github/workflows/release.yml` handles releases.
-The Rust port is NOT part of that shared workflow: its gate is staged at
-[`ci/workflows/rust.yml`](ci/workflows/rust.yml) and runs
-[`ci/rust/run.sh`](ci/rust/run.sh), which clones the seven sibling
-crates the crate takes as path dependencies. `ci/workflows/docs.yml`
-already lists `rs/README.md` in both `paths:` blocks, because the page
-is in the gated prose set.
+The Rust port is NOT part of that shared workflow: its gate is
+[`.github/workflows/rust.yml`](.github/workflows/rust.yml), which clones
+the seven sibling crates the crate takes as path dependencies and runs
+[`ci/rust/run.sh`](ci/rust/run.sh). The prose gate,
+`.github/workflows/docs.yml`, lists `rs/README.md` in both `paths:`
+blocks, because the page is in the gated prose set.
 
 Session credentials cannot write `.github/workflows/*` — changes there go
 through the tabnas/admin rollout (admin `DECISIONS.md` ADR-8).

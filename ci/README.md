@@ -9,29 +9,21 @@ This directory exists because session credentials cannot write
 2. A maintainer promotes it with the admin `rollout/apply-ci-folders.sh`
    script.
 
-## Pending
+## Promoted, 2026-09-22
 
-- **`workflows/docs.yml`** — the prose gate: Vale over the reader-facing
-  pages at the levels set in `.vale.ini`, on the file list
-  `ts/scripts/gated-docs.cjs` produces. See `docs/STYLE-GUIDE.md`.
+Both files that were staged here are now live, moved by the rollout
+script rather than edited: `workflows/docs.yml` is
+`.github/workflows/docs.yml` and `workflows/rust.yml` is
+`.github/workflows/rust.yml`. Nothing is pending. Read the workflows
+themselves rather than a description of them here.
 
-  It needs no sibling checkouts and no secrets, and pins its own Vale
-  version. Errors fail the job; warnings go to the run summary as a
-  report. `make prose` runs the identical check locally, and the test
-  suite already runs the other half of the gate
-  (`ts/test/docs.test.js`), so promoting this adds the spelling and
-  Google-convention arm rather than the whole gate.
+## What still lives here
 
-- **`workflows/rust.yml`**, the Rust gate: `ci/rust/run.sh` (formatting,
-  build, the shared fixtures, the in-language suites, doctests, clippy,
-  and a lockfile check that exempts only the sibling crates' versions)
-  on the MSRV pinned in `rs/Cargo.toml`. It clones `tabnas/parser`,
-  `tabnas/json`, `tabnas/jsonic`, `tabnas/directive`, `tabnas/support`,
-  `tabnas/path` and `tabnas/debug` beside the checkout, because the
-  crate takes all seven as path dependencies and none is published.
-  `make test-rs` is the fast local loop; the script is what CI would
-  run.
-
-  Promoting it also means adding `rs/README.md` to the `paths:` lists in
-  `workflows/docs.yml`, which is already done there: the page is in the
-  gated set, so the prose gate has to run when it changes.
+- **`rust/run.sh`** is the Rust gate itself: formatting, build, the
+  shared fixtures, the in-language suites, doctests, clippy, and a
+  lockfile check that exempts only the sibling crates' versions, on the
+  MSRV pinned in `rs/Cargo.toml`. `.github/workflows/rust.yml` clones
+  `tabnas/parser`, `tabnas/json`, `tabnas/jsonic`, `tabnas/directive`,
+  `tabnas/support`, `tabnas/path` and `tabnas/debug` beside the checkout,
+  because the crate takes all seven as path dependencies, and then calls
+  it; you can run it too. `make test-rs` is the fast local loop.
