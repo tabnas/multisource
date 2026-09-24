@@ -665,7 +665,7 @@ amended 2026-09-24), so nothing needs staging in `ci/` first. Two
 cases also involve admin:
 
 - A workflow admin keeps a template for
-  (`rollout/workflows/multisource__<file>.yml`) is mirrored in that
+  (`rollout/workflows/multisource__<file>`) is mirrored in that
   template at the same time, or admin `scripts/verify.sh` reports the
   drift and a maintainer's next `rollout/apply-workflows.sh --apply`
   would push the old text back.
