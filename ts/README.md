@@ -47,7 +47,7 @@ Four-quadrant [Diátaxis](https://diataxis.fr) docs:
 - [Tutorial](doc/tutorial.md). Zero to a working multisource parse.
 - [How-to guide](doc/guide.md). Recipes: files, custom kinds, merging,
   base paths, dependency tracking, preloading.
-- [Reference](doc/reference.md). Every export, option and type.
+- [Reference](doc/reference.md). Every export, option, and type.
 - [Concepts](doc/concepts.md). How it works and why; the engine relationship.
 
 The Go port lives in [`../go`](../go/) with its own

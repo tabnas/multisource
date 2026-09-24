@@ -38,7 +38,7 @@ Four-quadrant [Diátaxis](https://diataxis.fr) docs:
 - [Tutorial](doc/tutorial.md). Zero to a working multisource parse.
 - [How-to guide](doc/guide.md). Recipes: custom kinds, merging, base paths,
   custom resolvers.
-- [Reference](doc/reference.md). Every exported symbol, option and type.
+- [Reference](doc/reference.md). Every exported symbol, option, and type.
 - [Concepts](doc/concepts.md). How it works, and how the Go port differs from
   the TypeScript version.
 

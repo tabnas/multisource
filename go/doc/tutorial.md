@@ -122,6 +122,6 @@ out, _ := tabnasmultisource.Parse(`{x: @a.jsonic}`,
 
 - [How-to guide](./guide.md). Recipes for custom kinds, base paths, merging,
   and custom resolvers.
-- [Reference](./reference.md). Every exported symbol, option and type.
+- [Reference](./reference.md). Every exported symbol, option, and type.
 - [Concepts](./concepts.md). How resolution and processing work, and how the
   Go port differs from the TypeScript original.

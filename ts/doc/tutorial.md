@@ -111,6 +111,6 @@ Two files and one inline value, merged into a single result.
 
 - [How-to guide](./guide.md). Focused recipes: reading from disk, custom
   source kinds, base paths, dependency tracking, preloading.
-- [Reference](./reference.md). Every export, option and type.
+- [Reference](./reference.md). Every export, option, and type.
 - [Concepts](./concepts.md). How resolution and processing actually work,
   and how the plugin relates to the parser engine.

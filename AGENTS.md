@@ -42,7 +42,7 @@ sweep, an install or a fetch, a release, a wait on CI, a benchmark, a
 script or loop you write, and anything sent to the background.
 
 - **Minimal is enough.** One line with the step and a count, such as
-  `conformance: 412/1500 (27%)`, meets it. When no total is known, print
+  `conformance: 412 of 1500 (27%)`, meets it. When no total is known, print
   what is known (the step, the current item, the elapsed time) and say the
   percentage is unknown rather than inventing one.
 - **Build it into what you write.** A script or loop prints a line per
@@ -652,12 +652,12 @@ the closure, builds the TS siblings in topo order (with
 before `go build` / `go test`. Because `@tabnas/debug` is a
 devDependency, the composition test runs as part of `npm test`. Neither
 job publishes to npm; `.github/workflows/release.yml` handles releases.
-The Rust port is NOT part of that shared workflow: its gate is staged at
-[`ci/workflows/rust.yml`](ci/workflows/rust.yml) and runs
-[`ci/rust/run.sh`](ci/rust/run.sh), which clones the seven sibling
-crates the crate takes as path dependencies. `ci/workflows/docs.yml`
-already lists `rs/README.md` in both `paths:` blocks, because the page
-is in the gated prose set.
+The Rust port is NOT part of that shared workflow: its gate is
+[`.github/workflows/rust.yml`](.github/workflows/rust.yml), which clones
+the seven sibling crates the crate takes as path dependencies and runs
+[`ci/rust/run.sh`](ci/rust/run.sh). The prose gate,
+`.github/workflows/docs.yml`, lists `rs/README.md` in both `paths:`
+blocks, because the page is in the gated prose set.
 
 Session credentials cannot write `.github/workflows/*` — changes there go
 through the tabnas/admin rollout (admin `DECISIONS.md` ADR-8).
