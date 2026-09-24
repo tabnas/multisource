@@ -2,7 +2,7 @@
 
 How the tabnas documentation is written. Adapted from
 [aontu](https://github.com/aontu-lang/aontu)'s `docs/STYLE-GUIDE.md`,
-with tabnas's terminology, two-runtime file layout, and executable-example
+with tabnas's terminology, per-runtime file layout, and executable-example
 conventions. This guide is normative for every page `ts/scripts/gated-docs.cjs`
 lists, which is the reader-facing set: 12 pages in this repository. It exists so that a page written next year sounds like a
 page written this year, and so that a reviewer can point at a rule instead
@@ -100,8 +100,10 @@ tutorial, used in a guide, specified in the reference, argued in the
 explanation) but the normative statement lives in the reference and
 everything else links to it.
 
-**The two runtimes carry the same set.** A page present under `ts/doc/`
-and missing under `go/doc/` is a gap. `gated-docs.cjs` names each page,
+**The TypeScript and Go runtimes carry the same set.** A page present
+under `ts/doc/` and missing under `go/doc/` is a gap. The Rust port has
+no `rs/doc/`: `rs/README.md`, gated with the other READMEs, documents
+it. `gated-docs.cjs` names each page,
 and throws when a named page is not on disk, so a page renamed or
 deleted fails the gate rather than leaving it. A page only one port has
 is a deliberate exception and says so in its own opening lines.
