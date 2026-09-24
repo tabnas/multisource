@@ -16,8 +16,9 @@ to promote is optional. Two cases also involve admin:
   would push the old text back.
 - The stamped `clib.yml` and `clib-release.yml` (each carries a
   `tabnas-clib-template` marker) are never edited by hand. Change admin
-  `tasks/clib-template/`, re-stamp with `tasks/adopt-clib.sh`, and move
-  the `ci/clib*.yml` it writes over the copies in `.github/workflows/`.
+  `tasks/clib-template/` and re-stamp with `tasks/adopt-clib.sh`, which
+  writes both workflows straight into `.github/workflows/`. The new
+  stamp lands in this repository's own reviewed pull request.
 
 Sessions still cannot push tags, so a maintainer pushes any tag that a
 tag-triggered workflow needs.
