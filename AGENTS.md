@@ -659,8 +659,23 @@ the seven sibling crates the crate takes as path dependencies and runs
 `.github/workflows/docs.yml`, lists `rs/README.md` in both `paths:`
 blocks, because the page is in the gated prose set.
 
-Session credentials cannot write `.github/workflows/*` — changes there go
-through the tabnas/admin rollout (admin `DECISIONS.md` ADR-8).
+To change CI, edit `.github/workflows/` in a reviewed pull request:
+session credentials push workflow files (admin `DECISIONS.md` ADR-8, as
+amended 2026-09-24), so nothing needs staging in `ci/` first. Two
+cases also involve admin:
+
+- A workflow admin keeps a template for
+  (`rollout/workflows/multisource__<file>.yml`) is mirrored in that
+  template at the same time, or admin `scripts/verify.sh` reports the
+  drift and a maintainer's next `rollout/apply-workflows.sh --apply`
+  would push the old text back.
+- The stamped `clib.yml` and `clib-release.yml` (each carries a
+  `tabnas-clib-template` marker) are never edited here. Change admin
+  `tasks/clib-template/`, re-stamp with `tasks/adopt-clib.sh`, and move
+  the `ci/clib*.yml` it writes over the copies in `.github/workflows/`.
+
+Sessions still cannot push tags, so a maintainer pushes any tag a
+tag-triggered workflow needs.
 
 ## Agent tooling
 

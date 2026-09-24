@@ -1,13 +1,26 @@
 # ci/
 
-Staging area for GitHub Actions workflow changes.
+The scripts the CI workflows run, kept here so that you can run the same
+gate locally: `rust/run.sh` is the Rust gate, and
+`.github/workflows/rust.yml` runs it (see "What still lives here").
 
-This directory exists because session credentials cannot write
-`.github/workflows/*` — see admin `DECISIONS.md` ADR-8. To change CI:
+To change CI, edit `.github/workflows/` in a reviewed pull request.
+Session credentials push workflow files (admin `DECISIONS.md` ADR-8, as
+amended 2026-09-24), so staging a workflow here first for a maintainer
+to promote is optional. Two cases also involve admin:
 
-1. Put the intended workflow file in `workflows/`.
-2. A maintainer promotes it with the admin `rollout/apply-ci-folders.sh`
-   script.
+- A workflow admin keeps a template for
+  (`rollout/workflows/multisource__<file>.yml`) is mirrored in that
+  template at the same time, or admin `scripts/verify.sh` reports the
+  drift and a maintainer's next `rollout/apply-workflows.sh --apply`
+  would push the old text back.
+- The stamped `clib.yml` and `clib-release.yml` (each carries a
+  `tabnas-clib-template` marker) are never edited by hand. Change admin
+  `tasks/clib-template/`, re-stamp with `tasks/adopt-clib.sh`, and move
+  the `ci/clib*.yml` it writes over the copies in `.github/workflows/`.
+
+Sessions still cannot push tags, so a maintainer pushes any tag that a
+tag-triggered workflow needs.
 
 ## Promoted, 2026-09-22
 
