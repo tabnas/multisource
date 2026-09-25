@@ -125,3 +125,5 @@ yarn.lock
 
 # --- Rust ---
 target/
+
+.DS_Store
