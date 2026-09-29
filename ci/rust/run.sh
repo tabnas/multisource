@@ -6,7 +6,7 @@
 # The engine, the jsonic base (and the JSON core it needs), the directive
 # plugin, the fixture runner, the path-diving plugin and the debug plugin
 # are all PATH DEPENDENCIES on sibling checkouts (rs/Cargo.toml:
-# `tabnas = { path = "../../parser/rs" }` and so on). None is published,
+# `tabnas = { package = "tabnas-parser", path = "../../parser/rs" }` and so on). None is published,
 # so there is no registry version to fall back on. Clone
 # https://github.com/tabnas/parser, https://github.com/tabnas/json,
 # https://github.com/tabnas/jsonic, https://github.com/tabnas/directive,
@@ -82,7 +82,7 @@ fi
 lock_without_sibling_versions() {
   awk '
     /^\[\[package\]\]$/                { sib = 0 }
-    /^name = "tabnas"$/                { sib = 1 }
+    /^name = "tabnas-parser"$/                { sib = 1 }
     /^name = "tabnas-json"$/           { sib = 1 }
     /^name = "tabnas-jsonic"$/         { sib = 1 }
     /^name = "tabnas-directive"$/      { sib = 1 }
