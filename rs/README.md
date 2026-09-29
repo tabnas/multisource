@@ -251,7 +251,7 @@ at them:
 ```toml
 [dependencies]
 tabnas-multisource = { path = "../multisource/rs" }
-tabnas = { path = "../parser/rs" }
+tabnas = { package = "tabnas-parser", path = "../parser/rs" }
 tabnas-jsonic = { path = "../jsonic/rs" }
 ```
 
