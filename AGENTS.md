@@ -105,7 +105,8 @@ publish tagged releases):
 - TypeScript: the runtime tabnas packages are `peerDependencies` in
   `ts/package.json` — `@tabnas/parser`, `@tabnas/jsonic`,
   `@tabnas/directive`, `@tabnas/path`, all at `">=0"` (they are
-  unpublished, so the version range is deliberately open). The same four
+  unpublished, so the version range is deliberately open), and
+  `peerDependenciesMeta` marks `@tabnas/path` optional. The same four
   plus `@tabnas/debug` and `@tabnas/railroad` are `"*"`
   **devDependencies**; locally they resolve through the
   `ts/node_modules/@tabnas/*` symlinks into the sibling checkouts that
@@ -206,11 +207,13 @@ and here rather than silently diverging.
 
 ### Gotchas an agent must know
 
-- **`@tabnas/path` is a declared peer but is not imported by `src/`.** It
-  is the path-diving plugin; multisource composes with it (a reference can
-  land at a dived key) and that composition is exercised in the tests
+- **`@tabnas/path` is an optional peer and is not imported by `src/`.** It
+  is the path-diving plugin; multisource composes with it when an
+  application installs it (a reference can land at a dived key, read from
+  `rule.k.path`), and that composition is exercised in the tests
   (`ts/test/multisource.test.ts` `.use(Path)`, `go/multisource_test.go`
-  `path.Path`). Keep it as a peer/replace so the composition tests resolve.
+  `path.Path`). Keep it an optional peer, a devDependency and a Go
+  require, so the composition tests resolve.
 - **`ctx.meta.fs` is the filesystem injection point.** The `file` and
   `pkg` resolvers read it (falling back to `node:fs`), which is how the
   `memfs`-based tests and the in-process preload work. Don't hardcode
