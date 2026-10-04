@@ -10,7 +10,7 @@ npm install @tabnas/multisource @tabnas/parser @tabnas/jsonic
 ```
 
 Peer dependencies: `@tabnas/parser` (the engine), `@tabnas/jsonic` (grammar),
-`@tabnas/directive`, `@tabnas/path`.
+`@tabnas/directive`, and optionally `@tabnas/path`.
 
 ## Entry points (package exports)
 
