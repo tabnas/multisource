@@ -13,7 +13,7 @@ import (
 // VERSION is this module's version. It MUST equal ts/package.json
 // "version": the release orchestrator rewrites both, and
 // TestVersionMatchesPackageJSON fails the build if they drift.
-const VERSION = "0.5.10"
+const VERSION = "0.6.0"
 
 // PreloadOptions configures folder-scanning preload: read all matching files
 // from the specified folders into memory before parsing starts, avoiding
