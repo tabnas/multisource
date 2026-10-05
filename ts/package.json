@@ -67,7 +67,6 @@
   },
   "peerDependencies": {
     "@tabnas/directive": ">=0",
-    "@tabnas/jsonic": ">=0",
     "@tabnas/parser": ">=0",
     "@tabnas/path": ">=0"
   },

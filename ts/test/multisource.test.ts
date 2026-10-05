@@ -14,6 +14,7 @@ import { makeMemResolver } from '../dist/resolver/mem'
 import { makeFileResolver } from '../dist/resolver/file'
 import { makePkgResolver } from '../dist/resolver/pkg'
 import { Path } from '@tabnas/path'
+import { jsonProcessor } from './json-processor'
 
 
 describe('multisource', () => {
@@ -29,6 +30,8 @@ describe('multisource', () => {
         'g/index.jsc': 'g:6',
         'h/index.h.jsc': 'h:7',
       }),
+      // The plugin ships no JSON source: the application registers one.
+      processor: { json: jsonProcessor },
       // processor: {
       //   js: makeJavaScriptProcessor({ evalOnly: true }),
       // },
@@ -294,9 +297,27 @@ describe('multisource', () => {
   })
 
 
+  test('json-source-is-the-applications', () => {
+    // multisource ships no JSON parser: with no processor registered for
+    // the `json` kind, a `.json` source is its raw text, as any kind without
+    // a processor is. Registering one makes it a value.
+    const resolver = makeMemResolver({ 'd.json': '{"d":3}' })
+
+    const plain = new Tabnas().use(jsonic).use(MultiSource, { resolver })
+    assert.deepEqual(plain.parse('x:@d.json'), { x: '{"d":3}' })
+
+    const withJson = new Tabnas().use(jsonic).use(MultiSource, {
+      resolver,
+      processor: { json: jsonProcessor },
+    })
+    assert.deepEqual(withJson.parse('x:@d.json'), { x: { d: 3 } })
+  })
+
+
   test('file-kind', () => {
     let j0 = new Tabnas().use(jsonic).use(MultiSource, {
       resolver: makeFileResolver(),
+      processor: { json: jsonProcessor },
     })
 
     let deps = {}

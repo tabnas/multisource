@@ -10,13 +10,13 @@ use std::sync::{Arc, Mutex};
 
 use tabnas::Value;
 use tabnas_multisource::{
-    build_potentials, default_processor, ext_kind, make_with, parse, plugin_with,
-    preload_files_with, resolve_path_spec, source_dir, DependencyMap, FileResolver, MapFs,
-    MapResolver, MultiSourceOptions, PkgResolver, PreloadOptions, ProcessorInput, Resolution,
-    ResolverInput, TOP,
+    build_potentials, default_processor, ext_kind, plugin_with, preload_files_with,
+    resolve_path_spec, source_dir, DependencyMap, FileResolver, MapFs, MapResolver,
+    MultiSourceOptions, PkgResolver, PreloadOptions, ProcessorInput, Resolution, ResolverInput,
+    TOP,
 };
 
-use common::to_json;
+use common::{make_with, to_json, with_json};
 
 /// A JSON literal read the way a parse result is: see `common::canon`.
 macro_rules! j {
@@ -50,7 +50,9 @@ fn code_of(parser: &tabnas::Tabnas, src: &str) -> String {
 
 #[test]
 fn happy() {
-    let parser = make_with(MultiSourceOptions::new(sources([
+    // `d.json` reads as an object because a `json` processor is
+    // registered: the plugin ships none.
+    let parser = make_with(with_json(MultiSourceOptions::new(sources([
         ("a.jsonic", "a:1"),
         ("b.jsc", "b:2"),
         ("c.txt", "CCC"),
@@ -58,7 +60,7 @@ fn happy() {
         ("f.jsc", "f:5"),
         ("g/index.jsc", "g:6"),
         ("h/index.h.jsc", "h:7"),
-    ])));
+    ]))));
 
     assert_eq!(
         parse_json(&parser, "a:@a.jsonic,x:1"),
@@ -258,10 +260,34 @@ fn an_unknown_extension_is_raw_text() {
     assert_eq!(parse_json(&parser, "c:@c.txt"), j!({"c":"CCC"}));
 }
 
+/// A registered `json` processor that fails fails the parse: the raw
+/// text is not substituted for the value.
 #[test]
 fn malformed_json_fails_the_parse() {
-    let parser = make_with(MultiSourceOptions::new(sources([("a.json", "not json")])));
+    let parser = make_with(with_json(MultiSourceOptions::new(sources([(
+        "a.json", "not json",
+    )]))));
     assert_eq!(code_of(&parser, r#"k:@"a.json""#), "unexpected");
+}
+
+/// The plugin ships no JSON reader. With the default processors a
+/// `.json` source is raw text, as any kind without a processor is, and
+/// `.json` is still an implicit extension, so an extensionless reference
+/// finds the file. Registering a processor for the kind is what makes it
+/// read as JSON.
+#[test]
+fn a_json_source_is_raw_text_until_a_json_processor_is_registered() {
+    let files = [("d.json", r#"{"d":3}"#), ("bad.json", "not json")];
+
+    let plain = make_with(MultiSourceOptions::new(sources(files)));
+    assert_eq!(parse_json(&plain, "x:@d.json"), j!({"x":r#"{"d":3}"#}));
+    assert_eq!(parse_json(&plain, "x:@d"), j!({"x":r#"{"d":3}"#}));
+    assert_eq!(parse_json(&plain, "x:@bad.json"), j!({"x":"not json"}));
+
+    let json = make_with(with_json(MultiSourceOptions::new(sources(files))));
+    assert_eq!(parse_json(&json, "x:@d.json"), j!({"x":{"d":3}}));
+    assert_eq!(parse_json(&json, "x:@d"), j!({"x":{"d":3}}));
+    assert_eq!(code_of(&json, "x:@bad.json"), "unexpected");
 }
 
 /// A nested reference that cannot be resolved fails the whole parse,
@@ -576,7 +602,9 @@ fn the_file_resolver_reads_an_injected_filesystem() {
         ("h/index.h.jsonic", "{h:7}"),
         ("data/cfg.json", r#"{"k":4}"#),
     ]);
-    let parser = make_with(MultiSourceOptions::new(FileResolver::new()).with_fs(disk));
+    let parser = make_with(with_json(
+        MultiSourceOptions::new(FileResolver::new()).with_fs(disk),
+    ));
 
     let cases: [(&str, serde_json::Value); 5] = [
         ("{x:@a.jsonic}", j!({"a":1})),
@@ -1101,16 +1129,6 @@ fn source_dir_keeps_a_bare_key_bare() {
     assert_eq!(source_dir("b/a.jsonic"), "b");
     assert_eq!(source_dir("/a.jsonic"), "/");
     assert_eq!(source_dir("/b/a.jsonic"), "/b");
-}
-
-#[test]
-fn parse_builds_an_instance_for_one_document() {
-    let value = parse(
-        "{x: @a.jsonic}",
-        MultiSourceOptions::new(sources([("a.jsonic", "{a:1}")])),
-    )
-    .expect("the document parses");
-    assert_eq!(to_json(&value), j!({"x":{"a":1}}));
 }
 
 /// A closure is a resolver too, so a caller needs no type of their own

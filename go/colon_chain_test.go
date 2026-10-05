@@ -19,7 +19,7 @@ import (
 // finalised to null, and the import is silently dropped.
 func TestColonChainImport(t *testing.T) {
 	files := map[string]string{"minor": `{x:1}`}
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
 
 	cases := []struct {
 		src  string
@@ -49,7 +49,7 @@ func TestColonChainImport(t *testing.T) {
 // reproduction in the design note (jsonic-processed import via fs.FS).
 func TestColonChainImportFile(t *testing.T) {
 	fsys := fstest.MapFS{"minor.aon": {Data: []byte(`{x:1}`)}}
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
 
 	got, err := j.Parse(`struct: minor: @"minor.aon"`)
 	if err != nil {

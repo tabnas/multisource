@@ -24,7 +24,7 @@ func TestFileResolver(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "a.jsonic"), `{a:1}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		Path:     dir,
 	})
@@ -41,7 +41,7 @@ func TestFileResolverImplicitExt(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "b.jsonic"), `{b:2}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		Path:     dir,
 	})
@@ -58,7 +58,7 @@ func TestFileResolverIndex(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "mod", "index.jsonic"), `{m:3}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		Path:     dir,
 	})
@@ -75,7 +75,7 @@ func TestFileResolverFolderIndex(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "h", "index.h.jsonic"), `{h:7}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		Path:     dir,
 	})
@@ -93,7 +93,7 @@ func TestFileResolverPreload(t *testing.T) {
 	// No file on disk; provide content via preload keyed by absolute path.
 	abs, _ := filepath.Abs(filepath.Join(dir, "p.jsonic"))
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(FileResolverOptions{
 			Preload: map[string]string{abs: `{p:4}`},
 		}),
@@ -112,7 +112,7 @@ func TestFileResolverPathFinder(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "sub", "a.jsonic"), `{a:1}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(FileResolverOptions{
 			PathFinder: func(spec string) string { return "sub/" + spec },
 		}),
@@ -129,7 +129,7 @@ func TestFileResolverPathFinder(t *testing.T) {
 
 func TestFileResolverNotFound(t *testing.T) {
 	dir := t.TempDir()
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		Path:     dir,
 	})
@@ -149,7 +149,7 @@ func TestPkgResolver(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "node_modules", "mypkg", "zed.jsonic"), `{zed:99}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{dir}}),
 	})
 
@@ -166,7 +166,7 @@ func TestPkgResolverMain(t *testing.T) {
 	writeTestFile(t, filepath.Join(dir, "node_modules", "mypkg", "package.json"), `{"main":"main.jsonic"}`)
 	writeTestFile(t, filepath.Join(dir, "node_modules", "mypkg", "main.jsonic"), `{z:11}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{dir}}),
 	})
 
@@ -182,7 +182,7 @@ func TestPkgResolverIndex(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "node_modules", "idxpkg", "index.jsonic"), `{i:5}`)
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{dir}}),
 	})
 
@@ -203,7 +203,7 @@ func TestPkgResolverWalkUp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{nested}}),
 	})
 
@@ -217,7 +217,7 @@ func TestPkgResolverWalkUp(t *testing.T) {
 
 func TestPkgResolverNotFound(t *testing.T) {
 	dir := t.TempDir()
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{dir}}),
 	})
 

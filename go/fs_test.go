@@ -28,7 +28,11 @@ func TestFileResolverFS(t *testing.T) {
 		"data/cfg.json":    `{"k":4}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+	j := makeJsonic(MultiSourceOptions{
+		Resolver:  MakeFileResolver(),
+		FS:        fsys,
+		Processor: jsonProcessors(),
+	})
 
 	cases := []struct {
 		src  string
@@ -63,7 +67,7 @@ func TestFileResolverFSDottedFolder(t *testing.T) {
 		"my.app/nest.jsonic":      `{n:@"conf.jsonic"}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
 
 	cases := []struct {
 		src  string
@@ -95,7 +99,7 @@ func TestFileResolverFSViaMeta(t *testing.T) {
 	})
 
 	// No instance-level FS: the filesystem comes from the parse meta only.
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver()})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver()})
 
 	r, err := j.ParseMeta(`@"./main.jsonic"`, map[string]any{"fs": fsys})
 	if err != nil {
@@ -117,7 +121,7 @@ func TestPkgResolverFS(t *testing.T) {
 		"node_modules/mainpkg/main.jsonic":  `{z:11}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{"."}}),
 		FS:       fsys,
 	})
@@ -149,7 +153,7 @@ func TestPkgResolverFSWalkUp(t *testing.T) {
 		"a/b/c/.keep": ``,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{"a/b/c"}}),
 		FS:       fsys,
 	})
@@ -174,7 +178,7 @@ func TestPkgResolverRelativeInPkg(t *testing.T) {
 		"node_modules/relpkg/sub/deep.jsonic": `{z:30}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakePkgResolver(PkgResolverOptions{Paths: []string{"."}}),
 		FS:       fsys,
 	})

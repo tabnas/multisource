@@ -8,14 +8,15 @@ import (
 	"time"
 
 	directive "github.com/tabnas/directive/go"
-	jsonic "github.com/tabnas/jsonic/go"
 	tabnas "github.com/tabnas/parser/go"
 )
 
-// MultiSource is a jsonic plugin that adds multisource reference support.
-// When '@path' is encountered in the input, the path is resolved using
-// the configured resolver and processed into a value.
-func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
+// MultiSource is a tabnas plugin that adds multisource reference support.
+// Install it on a host parser you build yourself (for example a jsonic
+// instance) with j.Use(MultiSource, opts). When '@path' is encountered in
+// the input, the path is resolved using the configured resolver and
+// processed into a value.
+func MultiSource(j *tabnas.Tabnas, pluginOpts map[string]any) error {
 	opts := getOpts(pluginOpts)
 	markChar := opts.MarkChar
 	if markChar == "" {
@@ -32,7 +33,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 
 	// Message templates for the not-found error, matching the TS plugin's
 	// tn.options({error, hint}) registration.
-	j.SetOptions(jsonic.Options{
+	j.SetOptions(tabnas.Options{
 		Error: map[string]string{
 			"multisource_not_found": "source not found: {path}",
 			"multisource_cycle":     "source includes itself: {path}",
@@ -53,13 +54,13 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			Open: map[string]*directive.RuleMod{
 				"val": {},
 				"pair": {
-					C: func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+					C: func(r *tabnas.Rule, ctx *tabnas.Context) bool {
 						return r.Lte("pk", 0)
 					},
 				},
 			},
 		},
-		Action: func(rule *jsonic.Rule, ctx *jsonic.Context) {
+		Action: func(rule *tabnas.Rule, ctx *tabnas.Context) {
 			spec := rule.Child.Node
 
 			var pathStr string
@@ -82,7 +83,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			var ce *cycleError
 			if errors.As(perr, &ce) {
 				tkn := ctx.T0
-				if rule.Parent != nil && rule.Parent != jsonic.NoRule && rule.Parent.O0 != nil {
+				if rule.Parent != nil && rule.Parent != tabnas.NoRule && rule.Parent.O0 != nil {
 					tkn = rule.Parent.O0
 				}
 				if tkn != nil {
@@ -100,12 +101,12 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				// multisource_not_found) instead of quietly substituting the
 				// raw source text.
 				code := "unexpected"
-				var je *jsonic.JsonicError
+				var je *tabnas.TabnasError
 				if errors.As(perr, &je) && je.Code != "" {
 					code = je.Code
 				}
 				tkn := ctx.T0
-				if rule.Parent != nil && rule.Parent != jsonic.NoRule && rule.Parent.O0 != nil {
+				if rule.Parent != nil && rule.Parent != tabnas.NoRule && rule.Parent.O0 != nil {
 					tkn = rule.Parent.O0
 				}
 				if tkn != nil {
@@ -130,7 +131,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 					details["path"] = pathStr
 				}
 				tkn := ctx.T0
-				if rule.Parent != nil && rule.Parent != jsonic.NoRule && rule.Parent.O0 != nil {
+				if rule.Parent != nil && rule.Parent != tabnas.NoRule && rule.Parent.O0 != nil {
 					tkn = rule.Parent.O0
 				}
 				if tkn != nil {
@@ -140,7 +141,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			}
 
 			from := ""
-			if rule.Parent != nil && rule.Parent != jsonic.NoRule {
+			if rule.Parent != nil && rule.Parent != tabnas.NoRule {
 				from = rule.Parent.Name
 			}
 
@@ -156,7 +157,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 			//     returns a fresh map, so merge key-by-key back into gp instead
 			//     of reassigning gp.Node.
 			if from == "pair" {
-				if rule.Parent.Parent != nil && rule.Parent.Parent != jsonic.NoRule {
+				if rule.Parent.Parent != nil && rule.Parent.Parent != tabnas.NoRule {
 					gp := rule.Parent.Parent
 					mergeIntoParent(gp.Node, res, rule, ctx)
 				}
@@ -164,15 +165,15 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 				rule.Node = res
 			}
 		},
-		Custom: func(j *jsonic.Jsonic, cfg directive.DirectiveConfig) {
+		Custom: func(j *tabnas.Tabnas, cfg directive.DirectiveConfig) {
 			name := cfg.Name
 			openToken := "#OD_" + name
 			topCounter := name + "_top"
 
 			// Handle special case of @foo first token - assume a map.
-			err := j.Grammar(&jsonic.GrammarSpec{
-				Ref: map[jsonic.FuncRef]any{
-					"@pk-pos": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+			err := j.Grammar(&tabnas.GrammarSpec{
+				Ref: map[tabnas.FuncRef]any{
+					"@pk-pos": tabnas.AltCond(func(r *tabnas.Rule, ctx *tabnas.Context) bool {
 						return r.N["pk"] > 0
 					}),
 					// val-open back-track condition. Mirrors the canonical
@@ -183,41 +184,41 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 					// pk > 0 but its parent IS the pair for that key, so this
 					// stays false and the import resolves nested under the key
 					// rather than unwinding to depth 0 (which drops it to null).
-					"@pk-pos-val": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+					"@pk-pos-val": tabnas.AltCond(func(r *tabnas.Rule, ctx *tabnas.Context) bool {
 						return r.N["pk"] > 0 &&
-							(r.Parent == nil || r.Parent == jsonic.NoRule || r.Parent.Name != "pair")
+							(r.Parent == nil || r.Parent == tabnas.NoRule || r.Parent.Name != "pair")
 					}),
-					"@d-zero": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+					"@d-zero": tabnas.AltCond(func(r *tabnas.Rule, ctx *tabnas.Context) bool {
 						return r.D == 0
 					}),
-					"@d-one-top": jsonic.AltCond(func(r *jsonic.Rule, ctx *jsonic.Context) bool {
+					"@d-one-top": tabnas.AltCond(func(r *tabnas.Rule, ctx *tabnas.Context) bool {
 						return r.D == 1 && r.N[topCounter] == 1
 					}),
 				},
-				Rule: map[string]*jsonic.GrammarRuleSpec{
+				Rule: map[string]*tabnas.GrammarRuleSpec{
 					"val": {
-						Open: []*jsonic.GrammarAltSpec{
+						Open: []*tabnas.GrammarAltSpec{
 							{S: openToken, C: "@pk-pos-val", B: 1},
 							{S: openToken, C: "@d-zero", P: "map", B: 1, N: map[string]int{topCounter: 1}},
 						},
 					},
 					"map": {
-						Open: []*jsonic.GrammarAltSpec{
+						Open: []*tabnas.GrammarAltSpec{
 							{S: openToken, C: "@d-one-top", P: "pair", B: 1},
 						},
-						Close: []*jsonic.GrammarAltSpec{
+						Close: []*tabnas.GrammarAltSpec{
 							{S: openToken, C: "@pk-pos", B: 1},
 						},
 					},
 					"pair": {
-						Close: []*jsonic.GrammarAltSpec{
+						Close: []*tabnas.GrammarAltSpec{
 							{S: openToken, C: "@pk-pos", B: 1},
 						},
 					},
 				},
-			}, &jsonic.GrammarSetting{
-				Rule: &jsonic.GrammarSettingRule{
-					Alt: &jsonic.GrammarSettingAlt{G: name},
+			}, &tabnas.GrammarSetting{
+				Rule: &tabnas.GrammarSettingRule{
+					Alt: &tabnas.GrammarSettingAlt{G: name},
 				},
 			})
 			if err != nil {
@@ -239,7 +240,7 @@ func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error {
 //
 // Non-object nodes/values (either side not object-shaped) are a no-op, matching
 // the prior behaviour where the type assertion simply failed.
-func mergeIntoParent(gpNode, res any, rule *jsonic.Rule, ctx *jsonic.Context) {
+func mergeIntoParent(gpNode, res any, rule *tabnas.Rule, ctx *tabnas.Context) {
 	set, ok := parentSetter(gpNode)
 	if !ok {
 		return
@@ -256,7 +257,7 @@ func mergeIntoParent(gpNode, res any, rule *jsonic.Rule, ctx *jsonic.Context) {
 		if ctx.Cfg.MapMerge != nil {
 			set.put(k, ctx.Cfg.MapMerge(existing, v, rule, ctx))
 		} else if ctx.Cfg.MapExtend {
-			set.put(k, jsonic.Deep(existing, v))
+			set.put(k, tabnas.Deep(existing, v))
 		} else {
 			set.put(k, v)
 		}
@@ -266,7 +267,7 @@ func mergeIntoParent(gpNode, res any, rule *jsonic.Rule, ctx *jsonic.Context) {
 // parentGetSet reads and writes keys on an object node (an *OrderedMap or a
 // plain map[string]any) while preserving whichever representation the node uses.
 type parentGetSet struct {
-	om *jsonic.OrderedMap
+	om *tabnas.OrderedMap
 	pm map[string]any
 }
 
@@ -290,7 +291,7 @@ func (p parentGetSet) put(k string, v any) {
 // reporting whether the node was object-shaped.
 func parentSetter(node any) (parentGetSet, bool) {
 	switch n := node.(type) {
-	case *jsonic.OrderedMap:
+	case *tabnas.OrderedMap:
 		return parentGetSet{om: n}, true
 	case map[string]any:
 		if n == nil { // a typed-nil map is not a usable merge target
@@ -305,7 +306,7 @@ func parentSetter(node any) (parentGetSet, bool) {
 // *OrderedMap, else the plain map's keys (Go map-iteration order — order is
 // irrelevant for a plain map, which has none recorded).
 func orderedKeys(res any, m map[string]any) []string {
-	if om, ok := res.(*jsonic.OrderedMap); ok {
+	if om, ok := res.(*tabnas.OrderedMap); ok {
 		return om.Keys
 	}
 	keys := make([]string, 0, len(m))
@@ -329,7 +330,7 @@ func (e *cycleError) Error() string {
 
 // metaParents returns the chain of enclosing source paths recorded under
 // ctx.Meta["multisource"]["parents"].
-func metaParents(ctx *jsonic.Context) []string {
+func metaParents(ctx *tabnas.Context) []string {
 	if ms, ok := ctx.Meta["multisource"].(map[string]any); ok {
 		if ps, ok := ms["parents"].([]string); ok {
 			return ps
@@ -355,7 +356,7 @@ func metaParents(ctx *jsonic.Context) []string {
 // `rule.parent?.o0.bad('multisource_not_found', ...)`. The third is non-nil
 // when found source failed to PROCESS, e.g. a nested reference inside it
 // could not be resolved; TS lets that escape too.
-func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) (any, *Resolution, error) {
+func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas) (any, *Resolution, error) {
 	base := opts.Path
 	if parent := metaSourcePath(ctx); parent != "" {
 		base = sourceDir(parent)
@@ -435,7 +436,7 @@ func resolveSource(pathStr string, opts *MultiSourceOptions, ctx *jsonic.Context
 // metaSourcePath returns the full path of the source currently being parsed,
 // as threaded through ctx.Meta["multisource"]["path"]. It is empty for a
 // top-level parse (no enclosing source).
-func metaSourcePath(ctx *jsonic.Context) string {
+func metaSourcePath(ctx *tabnas.Context) string {
 	if ctx == nil || ctx.Meta == nil {
 		return ""
 	}
@@ -450,7 +451,7 @@ func metaSourcePath(ctx *jsonic.Context) string {
 // metaDeps returns the DependencyMap threaded through the parse meta as
 // ctx.Meta["multisource"]["deps"], or nil when the caller did not ask for
 // dependency tracking. Mirrors the TypeScript ctx.meta.multisource.deps.
-func metaDeps(ctx *jsonic.Context) DependencyMap {
+func metaDeps(ctx *tabnas.Context) DependencyMap {
 	if ctx == nil || ctx.Meta == nil {
 		return nil
 	}

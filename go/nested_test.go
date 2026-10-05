@@ -22,7 +22,7 @@ func TestNestedRelativeLoad(t *testing.T) {
 		"sub/grand.jsonic": `{v:99}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
 	r, err := j.Parse(`@"./main.jsonic"`)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +53,7 @@ func TestNestedRelativeSiblingDirs(t *testing.T) {
 		"bb/inner.jsonic": `{n:22}`,
 	})
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), FS: fsys})
 	r, err := j.Parse(`@"./main.jsonic"`)
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestNestedRelativeMemFlat(t *testing.T) {
 		"c/index.jsc": `c:3`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
 	r, err := j.Parse(`@a`)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestNestedSourcePathMeta(t *testing.T) {
 		res.Val = res.Src
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(),
 		FS:       fsys,
 		Processor: map[string]Processor{
@@ -152,7 +152,7 @@ func TestNestedRelativeLoadOSFiles(t *testing.T) {
 	write(filepath.Join(sub, "child.jsonic"), `{mid:2, grand:@"./grand.jsonic"}`)
 	write(filepath.Join(sub, "grand.jsonic"), `{v:99}`)
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), Path: dir})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeFileResolver(), Path: dir})
 	r, err := j.Parse(`@"./main.jsonic"`)
 	if err != nil {
 		t.Fatal(err)

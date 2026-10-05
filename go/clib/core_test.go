@@ -18,13 +18,13 @@ import (
 )
 
 const (
-	validSample   = "a: 1, b: {c: [x, \"y@z\"]} # @d\n"
-	invalidSample = "a: @core.go"
+	validSample   = "{\"a\":1,\"b\":{\"c\":[\"x\",\"y@z\"]}}"
+	invalidSample = "{\"a\":@\"core.go\"}"
 
 	// optsSample is the tabnas_grammar argument every handle below is
 	// built from: the tsv `opts` column, "" for a row that defines no
 	// options (which is (NULL, 0) at the C boundary).
-	optsSample = ""
+	optsSample = "{\"v\":2,\"options\":{\"tokenSet\":{\"KEY\":[\"#ST\"],\"VAL\":[\"#ST\",\"#NR\",\"#VL\"]}},\"rule\":{\"val\":{\"open\":[{\"s\":\"#OB\",\"p\":\"map\",\"b\":1,\"a\":\"@reset$\"},{\"s\":\"#OS\",\"p\":\"list\",\"b\":1,\"a\":\"@reset$\"},{\"s\":\"#VAL\",\"a\":\"@reset$\"}],\"close\":[{\"s\":\"#ZZ\",\"a\":\"@value$\"},{\"b\":1,\"a\":\"@value$\"}]},\"map\":{\"open\":[{\"s\":\"#OB #CB\",\"b\":1,\"a\":\"@object$\"},{\"s\":\"#OB\",\"p\":\"pair\",\"a\":\"@object$\"}],\"close\":[{\"s\":\"#CB\"}]},\"list\":{\"open\":[{\"s\":\"#OS #CS\",\"b\":1,\"a\":\"@array$\"},{\"s\":\"#OS\",\"p\":\"elem\",\"a\":\"@array$\"}],\"close\":[{\"s\":\"#CS\"}]},\"pair\":{\"open\":[{\"s\":\"#KEY #CL\",\"p\":\"val\",\"u\":{\"pair\":true},\"a\":\"@key$\"}],\"close\":[{\"s\":\"#CA\",\"r\":\"pair\",\"a\":\"@setval$\"},{\"s\":\"#CB\",\"b\":1,\"a\":\"@setval$\"}]},\"elem\":{\"open\":[{\"p\":\"val\"}],\"close\":[{\"s\":\"#CA\",\"r\":\"elem\",\"a\":\"@push$\"},{\"s\":\"#CS\",\"b\":1,\"a\":\"@push$\"}]}}}"
 )
 
 func decode(t *testing.T, doc string) map[string]any {

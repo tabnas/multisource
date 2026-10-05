@@ -67,8 +67,9 @@ func TestHappy(t *testing.T) {
 		"d.json":   `{"d":3}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
-		Resolver: MakeMemResolver(files),
+	j := makeJsonic(MultiSourceOptions{
+		Resolver:  MakeMemResolver(files),
+		Processor: jsonProcessors(),
 	})
 
 	r, err := j.Parse(`{a: @a.jsonic}`)
@@ -100,8 +101,9 @@ func TestImplicitExt(t *testing.T) {
 		"c.json":   `{"c":3}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
-		Resolver: MakeMemResolver(files),
+	j := makeJsonic(MultiSourceOptions{
+		Resolver:  MakeMemResolver(files),
+		Processor: jsonProcessors(),
 	})
 
 	r, err := j.Parse(`{x: @a}`)
@@ -132,7 +134,7 @@ func TestMultipleSources(t *testing.T) {
 		"b.jsonic": `{b:2}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -148,7 +150,7 @@ func TestMultipleSources(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	files := map[string]string{}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -168,7 +170,7 @@ func TestBasePath(t *testing.T) {
 		"data/a.jsonic": `{a:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 		Path:     "data",
 	})
@@ -186,8 +188,9 @@ func TestJSONSource(t *testing.T) {
 		"config.json": `{"host":"localhost","port":8080}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
-		Resolver: MakeMemResolver(files),
+	j := makeJsonic(MultiSourceOptions{
+		Resolver:  MakeMemResolver(files),
+		Processor: jsonProcessors(),
 	})
 
 	r, err := j.Parse(`{config: @config.json}`)
@@ -200,12 +203,62 @@ func TestJSONSource(t *testing.T) {
 	assert(t, "json-port", cfg["port"], float64(8080))
 }
 
+// TestJSONDefaultIsRawText checks that there is no built-in json processor.
+// With the default options a .json source falls through to the raw-text
+// processor like any other unregistered kind, whether named in full or found
+// through the implicit extensions. Registering a json processor through the
+// processor option parses it.
+func TestJSONDefaultIsRawText(t *testing.T) {
+	files := map[string]string{
+		"d.json": `{"d":3}`,
+	}
+
+	// Default options, typed form.
+	j := makeJsonic(MultiSourceOptions{
+		Resolver: MakeMemResolver(files),
+	})
+	for _, src := range []string{`x:@d.json`, `x:@d`} {
+		r, err := j.Parse(src)
+		if err != nil {
+			t.Fatalf("%s: %v", src, err)
+		}
+		assert(t, "default-raw "+src, asMap(r)["x"], `{"d":3}`)
+	}
+
+	// Default options, plain option keys.
+	jp := jsonic.Make()
+	if err := jp.Use(MultiSource, map[string]any{
+		"resolver": MakeMemResolver(files),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r, err := jp.Parse(`x:@d.json`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert(t, "default-raw-keys", asMap(r)["x"], `{"d":3}`)
+
+	// A registered json processor parses it.
+	jj := jsonic.Make()
+	if err := jj.Use(MultiSource, map[string]any{
+		"resolver":  MakeMemResolver(files),
+		"processor": map[string]Processor{"json": jsonProcessor},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r, err = jj.Parse(`x:@d.json`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert(t, "registered-json", asMap(r)["x"], map[string]any{"d": float64(3)})
+}
+
 func TestIndexFile(t *testing.T) {
 	files := map[string]string{
 		"mymod/index.jsonic": `{x:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -222,7 +275,7 @@ func TestMixedValues(t *testing.T) {
 		"a.jsonic": `{a:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -237,7 +290,7 @@ func TestMixedValues(t *testing.T) {
 }
 
 func TestEmptyInput(t *testing.T) {
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(map[string]string{}),
 	})
 
@@ -297,7 +350,7 @@ func TestCustomProcessor(t *testing.T) {
 		"csv": csvProc,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver:  MakeMemResolver(files),
 		Processor: procs,
 	})
@@ -319,27 +372,12 @@ func splitCSV(s string) []string {
 	return result
 }
 
-func TestParse(t *testing.T) {
-	files := map[string]string{
-		"a.jsonic": `{a:1}`,
-	}
-
-	r, err := Parse(`{x: @a.jsonic}`, MultiSourceOptions{
-		Resolver: MakeMemResolver(files),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := asMap(r)
-	assert(t, "parse", m["x"], map[string]any{"a": float64(1)})
-}
-
 func TestAbsolutePath(t *testing.T) {
 	files := map[string]string{
 		"/etc/config.jsonic": `{env:"prod"}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 		Path:     "ignored",
 	})
@@ -358,7 +396,7 @@ func TestPathPlugin(t *testing.T) {
 		"b.jsonic": `{b:2}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 	j.Use(path.Path, nil)
@@ -377,7 +415,7 @@ func TestMergeIntoMap(t *testing.T) {
 		"a.jsonic": `{a:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -395,7 +433,7 @@ func TestTopLevelRef(t *testing.T) {
 		"a.jsonic": `{a:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 
@@ -420,7 +458,7 @@ func TestDirectiveThenPair(t *testing.T) {
 		"b.jsonic": `a:{b:1,c:2}`,
 		"d.jsonic": `d:3`,
 	}
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeMemResolver(files),
 	})
 

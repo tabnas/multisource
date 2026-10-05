@@ -12,9 +12,9 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::time::{Duration, Instant};
 
-use tabnas_multisource::{
-    make_with, FileResolver, MapFs, MapResolver, MultiSourceOptions, PkgResolver,
-};
+use tabnas_multisource::{FileResolver, MapFs, MapResolver, MultiSourceOptions, PkgResolver};
+
+use common::make_with;
 
 fn sources<const N: usize>(entries: [(&str, &str); N]) -> MapResolver {
     MapResolver::from(entries)

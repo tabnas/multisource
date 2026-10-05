@@ -9,8 +9,9 @@ imports below use ESM syntax for brevity.
 npm install @tabnas/multisource @tabnas/parser @tabnas/jsonic
 ```
 
-Peer dependencies: `@tabnas/parser` (the engine), `@tabnas/jsonic` (grammar),
-`@tabnas/directive`, and optionally `@tabnas/path`.
+Peer dependencies: `@tabnas/parser` (the engine), `@tabnas/directive`, and
+optionally `@tabnas/path`. The host grammar is yours to choose:
+these examples install `@tabnas/jsonic`, which multisource does not depend on.
 
 ## Entry points (package exports)
 
@@ -153,9 +154,21 @@ value to `res.val`. Defaults:
 | Kind | Behaviour |
 | --- | --- |
 | `''` (NONE) | Returns the raw source string unchanged. |
-| `json` | Parses with a strict-JSON jsonic instance. |
 | `jsonic`, `jsc` | Re-parses the source through the current engine. |
 | `js` | `require`s the module, unwrapping a `.default` export. |
+
+There is no `json` default: multisource ships no JSON parser, so a `.json`
+source is its raw text until you register a processor for the
+`json` kind, with the JSON parser of its choice:
+
+```ts
+const strict = Jsonic.make('json')
+new Tabnas().use(jsonic).use(MultiSource, {
+  processor: {
+    json: (res) => { res.val = null == res.src ? undefined : strict(res.src) },
+  },
+})
+```
 
 ### `makeJsonicProcessor`
 

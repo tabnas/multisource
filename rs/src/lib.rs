@@ -2,24 +2,34 @@
 
 //! Load partial values from multiple external sources into one parse
 //! result, as a plugin for the [tabnas](https://github.com/tabnas/parser)
-//! parsing engine over the
-//! [jsonic](https://github.com/tabnas/jsonic) relaxed-JSON grammar.
+//! parsing engine.
 //!
 //! A directive character (`@` by default) marks a reference in the
 //! input. The plugin **resolves** the reference to a source, **processes**
 //! that source into a value, and splices the value into the output,
 //! recursively, so a loaded source can reference more sources.
 //!
+//! The plugin defines no value grammar of its own. It installs on a host
+//! grammar the caller builds, which must supply the `val`, `map` and
+//! `pair` rules: the [jsonic](https://github.com/tabnas/jsonic)
+//! relaxed-JSON grammar, for example.
+//!
 //! ```
-//! use tabnas_multisource::{make_with, MapResolver, MultiSourceOptions};
+//! use tabnas_multisource::{multisource, MapResolver, MultiSourceOptions};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let mut parser = tabnas_jsonic::make();
 //!     let sources = MapResolver::from([("a.jsonic", "a:1")]);
-//!     let parser = make_with(MultiSourceOptions::new(sources));
+//!     multisource(&mut parser, MultiSourceOptions::new(sources))?;
 //!     assert_eq!(parser.parse(r#"@"a.jsonic" b:2"#)?.to_string(), r#"{"a":1,"b":2}"#);
 //!     Ok(())
 //! }
 //! ```
+//!
+//! No JSON reader ships with the plugin either. A `.json` source is raw
+//! text, as any kind without a processor is, until the caller registers
+//! a processor for the `json` kind with
+//! [`MultiSourceOptions::with_processor`].
 //!
 //! TypeScript is canonical: `ts/src/multisource.ts` defines behaviour,
 //! option names and defaults. The shared fixtures in `test/spec/*.tsv`
@@ -69,9 +79,7 @@ mod resolver;
 mod vfs;
 
 pub use preload::{preload_files, preload_files_with, PreloadOptions};
-pub use processor::{
-    default_processor, json_processor, jsonic_processor, parse_nested, Processor, ProcessorInput,
-};
+pub use processor::{default_processor, jsonic_processor, parse_nested, Processor, ProcessorInput};
 pub use resolver::{FileResolver, MapResolver, PkgResolver};
 pub use vfs::{os_fs, DirEntry, MapFs, OsFs, SharedFs, SourceFs};
 
@@ -487,9 +495,13 @@ impl MultiSourceOptions {
     }
 }
 
-/// The default processor table: raw text for an unknown kind, the strict
-/// JSON reader for `json`, and a re-parse with the live engine for
-/// `jsonic` and `jsc`.
+/// The default processor table: raw text for an unknown kind, and a
+/// re-parse with the live engine for `jsonic` and `jsc`.
+///
+/// There is no `json` entry. A `.json` source is raw text, as any kind
+/// without a processor is, until the caller registers one with
+/// [`MultiSourceOptions::with_processor`], built with the JSON parser of
+/// its choice.
 pub fn default_processors() -> IndexMap<String, ProcessorEntry> {
     let mut processors = IndexMap::new();
     processors.insert(
@@ -504,14 +516,14 @@ pub fn default_processors() -> IndexMap<String, ProcessorEntry> {
         "jsc".to_string(),
         ProcessorEntry::Alias("jsonic".to_string()),
     );
-    processors.insert(
-        "json".to_string(),
-        ProcessorEntry::Call(Arc::new(json_processor)),
-    );
     processors
 }
 
 /// The default implicit extensions.
+///
+/// `.json` stays in the list although no `json` processor is registered
+/// by default: an extensionless reference still finds a `.json` file, and
+/// the processor the caller registers for that kind, if any, reads it.
 ///
 /// `.js` is deliberately absent: the TypeScript `js` kind `require`s,
 /// which is to say executes, the module, and Rust has no JavaScript
@@ -866,8 +878,9 @@ pub fn plugin() -> Plugin {
 /// Install the plugin on `parser`.
 ///
 /// The convenience constructor mirroring `tn.use(MultiSource, options)`.
-/// The host grammar must already supply `val`, `map` and `pair`: install
-/// [`tabnas_jsonic`] first, or use [`make_with`].
+/// The host grammar must already supply the `val`, `map` and `pair` rules
+/// (a jsonic parser does, for example), or this returns an error rather
+/// than registering a directive that could never match.
 pub fn multisource(
     parser: &mut Tabnas,
     options: MultiSourceOptions,
@@ -929,7 +942,8 @@ fn install(parser: &mut Tabnas, options: Arc<MultiSourceOptions>) -> Result<(), 
         if !rules.iter().any(|name| name == required) {
             return Err(MultiSourceError(format!(
                 "MultiSource needs a host grammar supplying the {required:?} rule: \
-                 install tabnas_jsonic first, or use make_with"
+                 install one that defines val, map and pair (tabnas-jsonic, for \
+                 example) before this plugin"
             )));
         }
     }
@@ -1465,7 +1479,7 @@ fn splice_into_parent(rule: &mut Rule, context: &mut Context, value: Value) {
 
     if extend {
         let base = target.borrow().clone();
-        let merged = tabnas_jsonic::deep_merge(base, value);
+        let merged = deep_merge(base, value);
         *target.borrow_mut() = merged;
         return;
     }
@@ -1509,30 +1523,178 @@ fn object_entries(value: &Value) -> Option<Vec<(String, Value)>> {
     }
 }
 
-// ---------------------------------------------------------------------
-// Convenience constructors
-// ---------------------------------------------------------------------
-
-/// A jsonic parser with the plugin installed over `options`.
-pub fn make_with(options: MultiSourceOptions) -> Tabnas {
-    let mut parser = tabnas_jsonic::make();
-    multisource(&mut parser, options).expect("the MultiSource plugin installs on jsonic");
-    parser
-}
-
-/// A jsonic parser with the plugin installed over default options: no
-/// sources, so every reference raises `multisource_not_found`.
-pub fn make() -> Tabnas {
-    make_with(MultiSourceOptions::default())
-}
-
-/// Parse `src` with `options`.
+/// Recursively merge `overlay` into `base`, for the `map.extend` splice:
+/// objects by key, arrays by index, and anything else replaced by the
+/// overlay. The base keeps its container kind, so a `MapRef` stays a
+/// `MapRef` with its metadata, and a `ListRef` a `ListRef`. The
+/// prototype-pollution guard of the TypeScript `deep()` utility is kept:
+/// `__proto__`, `constructor` and `prototype` keys of the overlay are
+/// skipped.
 ///
-/// Every call builds an instance. Building the grammar dominates a
-/// parse, so a loop should call [`make_with`] once and reuse the
-/// instance; `tests/perf_test.rs` measures the difference.
-pub fn parse(src: &str, options: MultiSourceOptions) -> Result<Value, TabnasError> {
-    make_with(options).parse(src)
+/// Ported from `deep_merge` in `tabnas-jsonic` (`jsonic/rs/src/lib.rs`),
+/// itself the port of the `deep()` the TypeScript grammar merges with, so
+/// that the plugin needs no grammar crate at run time. The engine's
+/// `tabnas::utility::deep` is not a substitute: it merges `serde_json`
+/// values, not the engine's native [`Value`], and would lose the
+/// container metadata.
+fn deep_merge(base: Value, overlay: Value) -> Value {
+    const DANGEROUS: [&str; 3] = ["__proto__", "constructor", "prototype"];
+
+    fn merge_entries(base: &mut IndexMap<String, Value>, overlay: IndexMap<String, Value>) {
+        for (key, value) in overlay {
+            if DANGEROUS.contains(&key.as_str()) {
+                continue;
+            }
+            let previous = base.get(&key).cloned().unwrap_or(Value::Undefined);
+            base.insert(key, deep_merge(previous, value));
+        }
+    }
+
+    fn merge_items(base: &mut Vec<Value>, overlay: Vec<Value>) {
+        for (index, value) in overlay.into_iter().enumerate() {
+            if index < base.len() {
+                let previous = std::mem::replace(&mut base[index], Value::Undefined);
+                base[index] = deep_merge(previous, value);
+            } else {
+                base.push(value);
+            }
+        }
+    }
+
+    match (base, overlay) {
+        (base, Value::Undefined) => base,
+        (Value::Object(base), Value::Object(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_entries(&mut base, unwrap_arc(overlay));
+            Value::object(base)
+        }
+        (Value::Object(base), Value::MapRef(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_entries(&mut base, unwrap_arc(overlay).value);
+            Value::object(base)
+        }
+        (Value::MapRef(base), Value::Object(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_entries(&mut base.value, unwrap_arc(overlay));
+            Value::MapRef(Arc::new(base))
+        }
+        (Value::MapRef(base), Value::MapRef(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_entries(&mut base.value, unwrap_arc(overlay).value);
+            Value::MapRef(Arc::new(base))
+        }
+        (Value::Array(base), Value::Array(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_items(&mut base, unwrap_arc(overlay));
+            Value::array(base)
+        }
+        (Value::Array(base), Value::ListRef(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_items(&mut base, unwrap_arc(overlay).value);
+            Value::array(base)
+        }
+        (Value::ListRef(base), Value::Array(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_items(&mut base.value, unwrap_arc(overlay));
+            Value::ListRef(Arc::new(base))
+        }
+        (Value::ListRef(base), Value::ListRef(overlay)) => {
+            let mut base = unwrap_arc(base);
+            merge_items(&mut base.value, unwrap_arc(overlay).value);
+            Value::ListRef(Arc::new(base))
+        }
+        (_, overlay) => overlay,
+    }
+}
+
+/// The value behind a shared container, copied only when another holder
+/// still shares it.
+fn unwrap_arc<T: Clone>(shared: Arc<T>) -> T {
+    Arc::try_unwrap(shared).unwrap_or_else(|shared| (*shared).clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn object(entries: &[(&str, Value)]) -> Value {
+        Value::object(
+            entries
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.clone()))
+                .collect(),
+        )
+    }
+
+    fn number(value: f64) -> Value {
+        Value::Number(value)
+    }
+
+    /// The splice under `map.extend` is the jsonic `deep_merge` this port
+    /// replaces, so the two must agree on every shape it can be handed.
+    #[test]
+    fn deep_merge_agrees_with_the_jsonic_merge_it_replaces() {
+        let cases: Vec<(Value, Value)> = vec![
+            (
+                object(&[("a", number(1.0)), ("n", object(&[("x", number(1.0))]))]),
+                object(&[("b", number(2.0)), ("n", object(&[("y", number(2.0))]))]),
+            ),
+            (
+                Value::array(vec![number(1.0), object(&[("a", number(1.0))])]),
+                Value::array(vec![
+                    number(9.0),
+                    object(&[("b", number(2.0))]),
+                    number(3.0),
+                ]),
+            ),
+            (
+                object(&[("a", number(1.0))]),
+                Value::array(vec![number(1.0)]),
+            ),
+            (object(&[("a", number(1.0))]), Value::Undefined),
+            (Value::Null, object(&[("a", number(1.0))])),
+            (number(1.0), Value::String("s".to_string())),
+            (
+                object(&[("a", number(1.0))]),
+                object(&[
+                    ("__proto__", object(&[("polluted", Value::Bool(true))])),
+                    ("constructor", number(1.0)),
+                    ("prototype", number(2.0)),
+                    ("ok", number(3.0)),
+                ]),
+            ),
+        ];
+        for (base, overlay) in cases {
+            let ours = deep_merge(base.clone(), overlay.clone());
+            let theirs = tabnas_jsonic::deep_merge(base.clone(), overlay.clone());
+            assert_eq!(ours, theirs, "deep_merge({base}, {overlay})");
+        }
+    }
+
+    /// The base keeps its container kind and its metadata: a `MapRef`
+    /// overlaid with a plain object is still that `MapRef`.
+    #[test]
+    fn deep_merge_keeps_the_base_container_and_its_metadata() {
+        let mut meta = IndexMap::new();
+        meta.insert("tag".to_string(), Value::String("kept".to_string()));
+        let mut entries = IndexMap::new();
+        entries.insert("a".to_string(), number(1.0));
+        let base = Value::MapRef(Arc::new(tabnas::MapRef {
+            value: entries,
+            implicit: true,
+            meta,
+        }));
+
+        match deep_merge(base, object(&[("b", number(2.0))])) {
+            Value::MapRef(map) => {
+                assert!(map.implicit);
+                assert_eq!(map.meta.get("tag"), Some(&Value::String("kept".into())));
+                assert_eq!(map.value.get("a"), Some(&number(1.0)));
+                assert_eq!(map.value.get("b"), Some(&number(2.0)));
+            }
+            other => panic!("the base container kind is kept, got {other:?}"),
+        }
+    }
 }
 
 #[cfg(doctest)]

@@ -9,9 +9,9 @@ contract. This file covers only what is specific to this crate.
 
 | Path | |
 |---|---|
-| `src/lib.rs` | the plugin: options, `PathSpec`, `Resolution`, the `Resolver` trait, the directive action (resolve, cycle check, depth check, dependency record, process, splice), the grammar, `multisource`, `plugin`, `plugin_with`, `make`, `make_with`, `parse`, `VERSION` |
+| `src/lib.rs` | the plugin: options, `PathSpec`, `Resolution`, the `Resolver` trait, the directive action (resolve, cycle check, depth check, dependency record, process, splice), the private `deep_merge` the `map.extend` splice uses, the grammar, `multisource`, `plugin`, `plugin_with`, `VERSION` |
 | `src/resolver.rs` | `MapResolver`, `FileResolver`, `PkgResolver`, and the root confinement |
-| `src/processor.rs` | the `Processor` trait, the three default processors, and `parse_nested` |
+| `src/processor.rs` | the `Processor` trait, the default processors (raw text, and the `jsonic` re-parse that `jsc` aliases), and `parse_nested` |
 | `src/preload.rs` | `PreloadOptions` and the folder scan |
 | `src/vfs.rs` | `SourceFs`, `OsFs`, `MapFs`, path cleaning, `real_path` and `within_root` |
 | `tests/parity_test.rs` | every `../test/spec/*.tsv` fixture through `tabnas_support::Runner::new_with_row`, a fresh parser per row from its `opts` column |
@@ -20,17 +20,37 @@ contract. This file covers only what is specific to this crate.
 | `tests/untrusted_test.rs` | hostile input: odd documents, odd source content, very long input, unbounded chains, and the sandbox root |
 | `tests/divergence_test.rs` | the Rust side of every row in `../DIVERGENCE.md` |
 | `tests/debug_model_test.rs` | composition with `tabnas-debug`: the rule set, the entry rule, and the `val` to `multisource` edges |
-| `tests/perf_test.rs` | instance reuse beats rebuild-per-parse (`go/perf_test.go`, `ts/test/perf.test.ts`) |
+| `tests/perf_test.rs` | instance reuse beats rebuild-per-parse (`ts/test/perf.test.ts`) |
 | `tests/version_test.rs` | `Cargo.toml` == `VERSION` == `ts/package.json` == `go/multisource.go` |
-| `tests/common/mod.rs` | the per-row parser, JSON flattening, number canonicalization, failure conversion |
+| `tests/common/mod.rs` | `make` / `make_with` (a jsonic parser with the plugin installed), the test `json_processor` and `with_json`, the per-row parser, JSON flattening, number canonicalization, failure conversion |
 | `README.md` | the crate front page, prose-gated; its `rust` fences are doctests of this crate |
 
 Crate `tabnas-multisource`, library `tabnas_multisource`. The engine
-(`tabnas`), the jsonic base (`tabnas-jsonic`, which brings
-`tabnas-json`) and the directive plugin (`tabnas-directive`) are **path
-dependencies on sibling checkouts**, as are the dev-only
+(`tabnas`) and the directive plugin (`tabnas-directive`) are the run
+time **path dependencies on sibling checkouts**. The dev-only ones are
+sibling checkouts too: `tabnas-jsonic` (which brings `tabnas-json`),
 `tabnas-support`, `tabnas-path` and `tabnas-debug`. None is published,
 so there is no registry version to fall back on.
+
+The crate has no host grammar and no JSON reader at run time, by the
+maintainer's instruction of 2026-10-05. A caller builds the host parser
+(jsonic, for one) and installs the plugin with `multisource` or
+`plugin_with`; a caller that loads `.json` sources registers a `json`
+processor. Keep `tabnas_jsonic` out of `src/` except under
+`#[cfg(test)]`:
+
+- **Tests build the host themselves.** `tests/common/mod.rs` holds the
+  `make` / `make_with` the crate used to export, and the strict-JSON
+  `json_processor` it used to register by default. A test with a
+  `.json` source registers that processor explicitly (`with_json`), and
+  so does the fixture runner's `parser_for`, which is what keeps
+  `test/spec/kinds.tsv` and `test/spec/errors.tsv` at their pinned
+  results.
+- **`deep_merge` is a private port** of `tabnas_jsonic::deep_merge`
+  (`jsonic/rs/src/lib.rs`), for the `map.extend` splice.
+  `tabnas::utility::deep` merges `serde_json` values, not the engine's
+  native `Value`, so it is no substitute. A unit test in `src/lib.rs`
+  compares the two, so a change to jsonic's merge shows up here.
 
 ```bash
 cargo build --all-targets

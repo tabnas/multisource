@@ -10,11 +10,66 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::OnceLock;
 
 use serde_json::Value as Json;
 use tabnas::{Tabnas, Value};
-use tabnas_multisource::{make_with, MapResolver, MultiSourceOptions};
+use tabnas_multisource::{
+    multisource, MapResolver, MultiSourceOptions, ProcessorInput, Resolution,
+};
 use tabnas_support::Failure;
+
+/// A jsonic parser with the plugin installed over `options`.
+///
+/// The plugin ships no constructor of its own: it installs on a host
+/// grammar the caller builds, and jsonic is the one these tests use.
+/// Registers no `json` processor; a test with a `.json` source adds
+/// [`json_processor`] itself, as an application would.
+pub fn make_with(options: MultiSourceOptions) -> Tabnas {
+    let mut parser = tabnas_jsonic::make();
+    multisource(&mut parser, options).expect("the MultiSource plugin installs on jsonic");
+    parser
+}
+
+/// [`make_with`] over default options: no sources, so every reference
+/// raises `multisource_not_found`.
+pub fn make() -> Tabnas {
+    make_with(MultiSourceOptions::default())
+}
+
+/// A `json` processor, as an application supplies one now that the
+/// plugin ships none: the source read through jsonic's strict-JSON
+/// parser, the reader the plugin's built-in processor used.
+///
+/// Malformed JSON fails the parse, with the strict parser's own error,
+/// rather than substituting the raw text, which would hand the caller a
+/// string where a map was expected.
+pub fn json_processor(resolution: &mut Resolution, _input: &ProcessorInput<'_>) {
+    let Some(src) = resolution.src.clone() else {
+        resolution.val = Value::Undefined;
+        return;
+    };
+    match strict_json().parse(&src) {
+        Ok(value) => resolution.val = value,
+        Err(error) => {
+            resolution.val = Value::String(src);
+            resolution.err = Some(Box::new(error));
+        }
+    }
+}
+
+/// The shared strict-JSON reader. A fresh one per call would rebuild the
+/// JSON grammar every time; this one is immutable and parses through
+/// `&self`.
+fn strict_json() -> &'static Tabnas {
+    static PARSER: OnceLock<Tabnas> = OnceLock::new();
+    PARSER.get_or_init(tabnas_jsonic::make_json)
+}
+
+/// `options` with [`json_processor`] registered for the `json` kind.
+pub fn with_json(options: MultiSourceOptions) -> MultiSourceOptions {
+    options.with_processor("json", json_processor)
+}
 
 /// The repository root: the parent of `rs/`.
 pub fn repo_root() -> &'static Path {
@@ -75,7 +130,13 @@ pub fn parser_for(options: &Json) -> Result<Tabnas, Failure> {
         }
     }
 
-    let mut parser = make_with(MultiSourceOptions::new(MapResolver::from_map(sources)));
+    // The plugin ships no `json` processor, and the shared fixtures were
+    // written when it did: `kinds.tsv` reads `d.json` as an object and
+    // `errors.tsv` fails on malformed JSON. Registering one for every
+    // row keeps the result those rows pin, and changes no other row.
+    let mut parser = make_with(with_json(MultiSourceOptions::new(MapResolver::from_map(
+        sources,
+    ))));
 
     if let Some(engine) = options.get("options") {
         apply_spec_options(&mut parser, engine)?;

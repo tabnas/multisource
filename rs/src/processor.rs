@@ -3,8 +3,10 @@
 //! Turning resolved source text into a value.
 //!
 //! The default table is the TypeScript one: raw text for an unknown
-//! kind, a strict JSON read for `json`, and a re-parse with the live
-//! engine for `jsonic` and `jsc`.
+//! kind, and a re-parse with the live engine for `jsonic` and `jsc`.
+//! There is no JSON reader here: a caller that loads `.json` sources
+//! registers a [`Processor`] for the `json` kind, built with the JSON
+//! parser of its choice, and until it does a `.json` source is raw text.
 
 use std::fmt;
 use std::sync::Arc;
@@ -208,36 +210,6 @@ pub fn jsonic_processor(resolution: &mut Resolution, input: &ProcessorInput<'_>)
     }
 }
 
-/// Read the source as standard JSON.
-///
-/// Malformed JSON fails the parse, matching the canonical TypeScript
-/// `json` processor, which reads through a strict-JSON jsonic instance
-/// and lets its error escape. Substituting the raw text instead hid the
-/// broken file and handed the caller a string where a map was expected.
-pub fn json_processor(resolution: &mut Resolution, _input: &ProcessorInput<'_>) {
-    let Some(src) = resolution.src.clone() else {
-        resolution.val = Value::Undefined;
-        return;
-    };
-    // A fresh strict instance per call would rebuild the JSON grammar
-    // every time; the shared one is immutable and parses through `&self`.
-    match strict_json().parse(&src) {
-        Ok(value) => resolution.val = value,
-        Err(error) => {
-            resolution.val = Value::String(src);
-            resolution.err = Some(Box::new(error));
-        }
-    }
-}
-
-/// The shared strict-JSON reader, the Rust counterpart of the module
-/// level `Jsonic.make('json')` the TypeScript processor closes over.
-fn strict_json() -> &'static Tabnas {
-    use std::sync::OnceLock;
-    static PARSER: OnceLock<Tabnas> = OnceLock::new();
-    PARSER.get_or_init(tabnas_jsonic::make_json)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,7 +221,12 @@ mod tests {
     /// perfectly acyclic document. It is a parse error instead.
     #[test]
     fn a_segment_that_cannot_be_spawned_fails_the_parse() {
-        let parser = Arc::new(crate::make());
+        // The host grammar is the caller's to build; jsonic is the one
+        // the tests use, as a dev-dependency.
+        let mut parser = tabnas_jsonic::make();
+        crate::multisource(&mut parser, MultiSourceOptions::default())
+            .expect("the MultiSource plugin installs on jsonic");
+        let parser = Arc::new(parser);
         let meta = Value::Undefined;
 
         REFUSE_SPAWN.with(|refuse| refuse.set(true));

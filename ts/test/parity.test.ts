@@ -17,6 +17,7 @@ import { findSpecDir, makeRunner } from '@tabnas/support'
 
 import { MultiSource } from '../dist/multisource'
 import { makeMemResolver } from '../dist/resolver/mem'
+import { jsonProcessor } from './json-processor'
 
 makeRunner({
   parse: (input, row) => {
@@ -27,8 +28,11 @@ makeRunner({
     const raw = row.named('opts')
     const opts = '' === raw.trim() ? {} : JSON.parse(raw)
 
+    // The plugin ships no JSON source; like an application, the runner
+    // registers one, so a `.json` source in a fixture is parsed.
     const tn = new Tabnas().use(jsonic).use(MultiSource, {
       resolver: makeMemResolver(opts.mem ?? {}),
+      processor: { json: jsonProcessor },
     })
     if (opts.options) tn.options(opts.options)
 

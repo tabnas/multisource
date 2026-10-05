@@ -12,9 +12,15 @@ go get github.com/tabnas/multisource/go
 ```go
 import (
     tabnasmultisource "github.com/tabnas/multisource/go"
-    jsonic "github.com/tabnas/jsonic/go"
+    tabnas "github.com/tabnas/parser/go"
 )
 ```
+
+`tabnas` is the parser engine. Its `*tabnas.Tabnas` and `*tabnas.Context`
+types appear in the plugin, resolver, and processor signatures. The package
+does not build a parser itself: you build the host parser, for example with
+`jsonic.Make()` from `github.com/tabnas/jsonic/go`, and install the plugin on
+it.
 
 ## Constants and package metadata
 
@@ -30,36 +36,42 @@ var Meta = PluginMeta{Name: "MultiSource"}  // plugin metadata (TS: `meta`)
 by the top-level parse. It is the Go counterpart of the TypeScript `TOP`
 symbol; the NUL byte guarantees it cannot collide with a real source path.
 
-## Constructors
-
-### `MakeJsonic`
-
-```go
-func MakeJsonic(opts ...MultiSourceOptions) *jsonic.Jsonic
-```
-
-Creates a `*jsonic.Jsonic` with the `MultiSource` plugin installed and
-defaults applied. Pass zero or one `MultiSourceOptions`. The returned instance
-is reusable; call `.Parse(src)` on it.
-
-### `Parse`
-
-```go
-func Parse(src string, opts ...MultiSourceOptions) (any, error)
-```
-
-Convenience wrapper. With no options it reuses a cached default parser (safe
-for concurrent use); with options it builds a fresh instance per call.
+## The plugin
 
 ### `MultiSource`
 
 ```go
-func MultiSource(j *jsonic.Jsonic, pluginOpts map[string]any) error
+func MultiSource(j *tabnas.Tabnas, pluginOpts map[string]any) error
 ```
 
-The raw plugin function, applied by `MakeJsonic`. Options are passed under the
-`"_opts"` key as a `*MultiSourceOptions`. Most callers use `MakeJsonic`
-instead of calling this directly.
+The plugin. Install it on a host parser you have built, with its options:
+
+```go
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
+})
+out, err := j.Parse(src)
+```
+
+The instance is reusable; call `.Parse(src)` or `.ParseMeta(src, meta)` on it.
+
+## Plugin options
+
+The plugin takes its options as plain keys, mirroring the TypeScript plugin
+options, or as one typed `*MultiSourceOptions` under the `"_opts"` key.
+
+| Key | Type | Effect |
+| --- | --- | --- |
+| `resolver` | `Resolver` | Sets `Resolver`. The value must have the `Resolver` type; the plugin ignores a plain function value. |
+| `path` | `string` | Sets `Path`. |
+| `markchar`, `markChar` | `string` | Sets `MarkChar`. |
+| `processor` | `map[string]Processor` | Adds or replaces entries in the default processor map. |
+| `implictExt`, `implicitExt` | `[]string` or `[]any` | Replaces `ImplicitExt`, adding a missing leading `.`. |
+| `fs` | `fs.FS` | Sets `FS`. |
+| `_opts` | `*MultiSourceOptions` | All options as a struct. Its unset `MarkChar`, `Processor`, `ImplicitExt`, and `Resolver` fields take the defaults, and its `Processor` map replaces the default map. When `_opts` is present the plugin ignores the plain keys. |
+
+Fields not set by any key take the defaults in the table below.
 
 ## `MultiSourceOptions`
 
@@ -90,16 +102,19 @@ type MultiSourceOptions struct {
 ```go
 map[string]Processor{
     NONE:     DefaultProcessor,   // ""  raw string passthrough
-    "json":   JSONProcessor,
     "jsonic": JsonicProcessor,
     "jsc":    JsonicProcessor,
 }
 ```
 
+There is no `json` entry. `NONE` handles a `.json` source, so its value is the
+raw text, until you register a processor for the `json` kind. The
+[how-to guide](guide.md#load-json-sources) has one built on `encoding/json`.
+
 ## Resolvers
 
 ```go
-type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution
+type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *tabnas.Context) Resolution
 ```
 
 The `ctx` carries the parse metadata (`ctx.Meta`); resolvers may read
@@ -167,28 +182,30 @@ relative slash-separated keys. Feed the result to
 ## Processors
 
 ```go
-type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
+type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas)
 ```
 
 A processor reads `res.Src` and assigns `res.Val`. The `ctx` carries the parse
-metadata for this load (`ctx.Meta`); the `j` argument is the engine, available
-for re-parsing.
+metadata for this load (`ctx.Meta`); the `j` argument is the host parser,
+available for re-parsing. A processor that sets `res.Err` fails the enclosing
+parse.
 
 | Function | Kind | Behaviour |
 | --- | --- | --- |
 | `DefaultProcessor` | `NONE` | `res.Val = res.Src` (raw string). |
-| `JSONProcessor` | `json` | `encoding/json` unmarshal; `nil` on empty source. Malformed JSON fails the parse (reported through `Resolution.Err`), as in TypeScript. |
-| `JsonicProcessor` | `jsonic`, `jsc` | Re-parses `res.Src` through the engine; `nil` on empty source. A parse failure inside the source (for example a nested `@missing`) fails the parse, reported through `Resolution.Err`. |
+| `JsonicProcessor` | `jsonic`, `jsc` | Re-parses `res.Src` through the host parser; `nil` on empty source. A parse failure inside the source (for example a nested `@missing`) fails the parse, reported through `Resolution.Err`. |
 
-In both cases `res.Val` still holds the raw source text, for callers that
-invoke a processor directly and inspect the `Resolution`; it is `res.Err` that
-makes the enclosing parse fail.
+On that failure `res.Val` still holds the raw source text, for callers that
+invoke the processor directly and inspect the `Resolution`; it is `res.Err`
+that makes the enclosing parse fail.
 
 ```go
-func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
-func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
-func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
+func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas)
+func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas)
 ```
+
+There is no `json` processor. Register your own for the `json` kind through
+the `processor` option.
 
 There is no `js` processor: Go cannot execute a JavaScript module, so `.js`
 sources are unsupported (see the
@@ -243,9 +260,9 @@ type PluginMeta struct {
 
 ## Dependency tracking and parse meta
 
-Pass parse metadata with `Jsonic.ParseMeta(src, meta)`. The plugin honours a
-`"multisource"` entry (a `map[string]any`), mirroring the TypeScript
-`MultiSourceMeta`:
+Pass parse metadata with `j.ParseMeta(src, meta)` on the host parser. The
+plugin honours a `"multisource"` entry (a `map[string]any`), mirroring the
+TypeScript `MultiSourceMeta`:
 
 | Key | Type | Purpose |
 | --- | --- | --- |
@@ -291,5 +308,5 @@ Placement determines splicing:
   cycle, and is allowed.
 - Numbers parse to `float64` (the jsonic engine default), as in all jsonic Go
   output.
-- `MakeJsonic` adds the mark character to the engine's ender chars so built-in
-  matchers stop at it.
+- The plugin adds the mark character to the ender chars of the host parser,
+  so built-in matchers stop at it.
