@@ -1,0 +1,12 @@
+{
+  "note": "Register of tabnas runtime dependencies that differ between this repository's ports (tabnas/admin ADR-24). tools/port-deps.cjs fails on a difference that is not listed here, and on an entry that no longer matches the manifests, so the list cannot outlive what it records. Every entry states the ports that have the dependency today, the reason, and the repair.",
+  "differ": {
+    "path": {
+      "ports": [
+        "ts"
+      ],
+      "reason": "TypeScript: ts/package.json lists '@tabnas/path' under peerDependencies, with peerDependenciesMeta marking it optional, but no file in ts/src imports it, as a value or as a type; ts/src/multisource.ts only reads `rule.k.path`, the key path the plugin leaves on a rule when an application installs it, and the one import is the value import `import { Path } from '@tabnas/path'` in ts/test/multisource.test.ts (`.use(Path as any)`), which the devDependency covers. Go: go/go.mod requires github.com/tabnas/path/go, but the only file that imports it is go/multisource_test.go (`j.Use(path.Path, nil)` in `TestPathPlugin`); no non-test .go file under go/ does, and none reads a rule's `K` map, where the Go path plugin keeps the path (`r.K[\"path\"]` in path/go/path.go), so the Go port has no counterpart of the TypeScript read. Rust: rs/Cargo.toml lists `tabnas-path` under [dev-dependencies] only, for rs/tests/multisource_test.rs (`tabnas_path::path`, `tabnas_path::PATH`), and rs/src/lib.rs reads the same key with `rule.k.get(\"path\")` without the crate.",
+      "repair": "Dropping '@tabnas/path' from peerDependencies and peerDependenciesMeta in ts/package.json, keeping the devDependency, would leave all three ports using the plugin in tests only; it would undo what commit c7b956d (#71) chose, which kept the peer so that an installed path plugin is still version-checked, and AGENTS.md (\"Gotchas an agent must know\") says to keep it an optional peer. The other direction, a runtime declaration in Go and Rust, has no code to attach to, because neither port's runtime source uses the plugin. The handover page (parser/doc/handover/README.md, \"Rulings\", item 9) records that this peer was made optional on the maintainer's instruction; it does not say whether the optional peer should remain while Go and Rust have none. Undecided: awaits the maintainer's ruling."
+    }
+  }
+}
