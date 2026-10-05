@@ -6,18 +6,18 @@ source, the whole point of the package.
 
 You need Go 1.24+ and the `github.com/tabnas/multisource/go` module available.
 
-## 1. Import the package
+## 1. Import the packages
 
 ```go
 import (
-    tabnasmultisource "github.com/tabnas/multisource/go"
     jsonic "github.com/tabnas/jsonic/go"
+    tabnasmultisource "github.com/tabnas/multisource/go"
 )
 ```
 
-`jsonic` is the parser engine (with the relaxed-JSON grammar);
-`tabnasmultisource` is this package. The exported package identifier is
-`tabnasmultisource`.
+`jsonic` builds the host parser (the tabnas engine with the relaxed-JSON
+grammar); `tabnasmultisource` is this package, a plugin you install on that
+parser. The exported package identifier is `tabnasmultisource`.
 
 ## 2. Parse a reference to an in-memory source
 
@@ -30,16 +30,19 @@ files := map[string]string{
     "a.jsonic": "{a:1}",
 }
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 out, _ := j.Parse(`{x: @a.jsonic}`)
 // out == map[string]any{"x": map[string]any{"a": float64(1)}}
 ```
 
-The `@a.jsonic` reference was replaced by the parsed contents of `a.jsonic`.
-Numbers come back as `float64`, the jsonic engine's default numeric type.
+`jsonic.Make()` builds the parser, and `j.Use` installs the plugin on it with
+its options. The `@a.jsonic` reference was replaced by the parsed contents of
+`a.jsonic`. Numbers come back as `float64`, the jsonic engine's default
+numeric type.
 
 ## 3. Reference at the top level
 
@@ -49,8 +52,9 @@ keys of the surrounding result:
 ```go
 files := map[string]string{"a.jsonic": "{a:1}"}
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 out, _ := j.Parse(`@a.jsonic b:2`)
@@ -68,8 +72,9 @@ tries implicit extensions (`.jsonic`, `.jsc`, `.json`) and also looks for an
 ```go
 files := map[string]string{"g/index.jsonic": "{g:6}"}
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 out, _ := j.Parse(`{x: @g}`)
@@ -78,6 +83,10 @@ out, _ := j.Parse(`{x: @g}`)
 
 `@g` had no extension, so the resolver tried `g.jsonic`, `g.jsc`, `g.json`,
 then `g/index.jsonic`, finding the index file.
+
+A `.json` file found this way comes back as raw text unless you register a
+processor for the `json` kind. The package has none built in; the
+[how-to guide](./guide.md#load-json-sources) shows how to add one.
 
 ## 5. Pull in several sources at once
 
@@ -89,8 +98,9 @@ files := map[string]string{
     "b.jsonic": "{b:2}",
 }
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 out, _ := j.Parse(`{x: @a.jsonic, y: @b.jsonic, z: 3}`)
@@ -102,21 +112,6 @@ out, _ := j.Parse(`{x: @a.jsonic, y: @b.jsonic, z: 3}`)
 ```
 
 Two files and one inline value, merged into a single result.
-
-## A one-shot alternative
-
-If you do not need to reuse the parser, `Parse` builds an instance and parses
-in one call:
-
-```go
-files := map[string]string{"a.jsonic": "{a:1}"}
-
-out, _ := tabnasmultisource.Parse(`{x: @a.jsonic}`,
-    tabnasmultisource.MultiSourceOptions{
-        Resolver: tabnasmultisource.MakeMemResolver(files),
-    })
-// out == map[string]any{"x": map[string]any{"a": float64(1)}}
-```
 
 ## Where to go next
 

@@ -16,10 +16,14 @@
 // the other's cheap reuse loop and make the ratio a function of core
 // count rather than of the code.
 
+mod common;
+
 use std::time::{Duration, Instant};
 
 use tabnas::Tabnas;
-use tabnas_multisource::{make_with, MapResolver, MultiSourceOptions};
+use tabnas_multisource::{MapResolver, MultiSourceOptions};
+
+use common::make_with;
 
 const SRC: &str = "{x:@a.jsonic,y:@b.jsonic,z:3}";
 const N: usize = 120;
@@ -83,6 +87,6 @@ fn reusing_one_instance_is_far_cheaper_than_rebuilding_per_parse() {
         rebuild >= WANT * reuse,
         "reusing one instance is not meaningfully faster than rebuilding per parse: \
          {N} rebuild-per-call parses took {rebuild:?} vs {reuse:?} reusing one instance \
-         (ratio {ratio:.1}x, want >={WANT}x). Build one make_with instance and reuse it."
+         (ratio {ratio:.1}x, want >={WANT}x). Build one instance and reuse it."
     );
 }

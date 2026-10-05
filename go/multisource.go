@@ -3,13 +3,11 @@
 package tabnasmultisource
 
 import (
-	"encoding/json"
 	"io/fs"
 	"path"
 	"strings"
-	"sync"
 
-	jsonic "github.com/tabnas/jsonic/go"
+	tabnas "github.com/tabnas/parser/go"
 )
 
 // VERSION is this module's version. It MUST equal ts/package.json
@@ -81,7 +79,7 @@ type Resolution struct {
 // parse metadata (ctx.Meta); resolvers may read ctx.Meta["fs"] for a per-parse
 // filesystem override. Mirrors the TypeScript Resolver, which receives the
 // parse Context.
-type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution
+type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *tabnas.Context) Resolution
 
 // Processor converts resolved source content into a value.
 //
@@ -91,7 +89,7 @@ type Resolver func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context)
 // ctx.Meta through so that nested relative references resolve against this
 // source's own directory. This mirrors the TypeScript Processor, which
 // receives the parse Context.
-type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic)
+type Processor func(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas)
 
 // NONE represents an unknown or missing extension.
 const NONE = ""
@@ -135,39 +133,19 @@ type PluginMeta struct {
 var Meta = PluginMeta{Name: "MultiSource"}
 
 // DefaultProcessor returns the raw source string as the value.
-func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
+func DefaultProcessor(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas) {
 	res.Val = res.Src
 }
 
-// JSONProcessor parses JSON source content.
-//
-// Malformed JSON fails the parse (via Resolution.Err), matching the canonical
-// TypeScript json processor, which parses through a strict-JSON jsonic
-// instance and lets its error escape. Substituting the raw text instead hid
-// the broken file and handed the caller a string where a map was expected.
-// res.Val keeps the raw text for callers that inspect the resolution directly.
-func JSONProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
-	if res.Src == "" {
-		res.Val = nil
-		return
-	}
-	var val any
-	if err := json.Unmarshal([]byte(res.Src), &val); err != nil {
-		res.Val = res.Src
-		res.Err = err
-		return
-	}
-	res.Val = val
-}
-
-// JsonicProcessor parses source content using jsonic.
+// JsonicProcessor parses source content by re-parsing it with the host
+// parser j (the instance the plugin is installed on, typically jsonic).
 //
 // It threads ctx.Meta (which records this source's full path under the
 // multisource entry) into the nested parse via ParseMeta, so that relative
 // references inside res.Src resolve against this source's own directory rather
 // than the top-level base path. Mirrors the canonical TypeScript jsonic
 // processor, which calls jsonic(res.src, ctx.meta).
-func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Context, j *jsonic.Jsonic) {
+func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *tabnas.Context, j *tabnas.Tabnas) {
 	if res.Src == "" {
 		res.Val = nil
 		return
@@ -192,7 +170,7 @@ func JsonicProcessor(res *Resolution, opts *MultiSourceOptions, ctx *jsonic.Cont
 // MakeMemResolver creates a resolver that looks up paths in a map. It reads
 // from its own in-memory map and ignores ctx / opts.FS.
 func MakeMemResolver(files map[string]string) Resolver {
-	return func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution {
+	return func(spec PathSpec, opts *MultiSourceOptions, ctx *tabnas.Context) Resolution {
 		res := Resolution{
 			PathSpec: spec,
 			Found:    false,
@@ -312,82 +290,16 @@ func PreloadFiles(opts PreloadOptions, fsys ...fs.FS) map[string]string {
 	return filemap
 }
 
-// defaultParser is a lazily-created instance reused by the no-options Parse
-// path, so repeated calls don't rebuild the engine and grammar each time.
-// Building the grammar dominates a parse — see perf_test.go — so a
-// rebuild-per-call Parse is many times slower than reusing one instance.
-// Parsing builds a fresh context per call and only reads instance state, so
-// the shared instance is safe for concurrent use. Mirrors @tabnas/yaml's Parse.
-//
-// Only the default (no-options) path is cached: callers that pass a
-// MultiSourceOptions get a fresh instance, because the options (resolver,
-// processors, base path) configure that instance and must not be shared.
-var (
-	defaultOnce   sync.Once
-	defaultParser *jsonic.Jsonic
-)
-
-// Parse parses a jsonic string with multisource support.
-func Parse(src string, opts ...MultiSourceOptions) (any, error) {
-	if len(opts) == 0 {
-		defaultOnce.Do(func() { defaultParser = MakeJsonic() })
-		return defaultParser.Parse(src)
-	}
-	j := MakeJsonic(opts[0])
-	return j.Parse(src)
-}
-
-// MakeJsonic creates a jsonic instance configured with multisource support.
-func MakeJsonic(opts ...MultiSourceOptions) *jsonic.Jsonic {
-	var o MultiSourceOptions
-	if len(opts) > 0 {
-		o = opts[0]
-	}
-
-	dopts := defaultOpts()
-	if o.MarkChar == "" {
-		o.MarkChar = dopts.MarkChar
-	}
-	if o.Processor == nil {
-		o.Processor = dopts.Processor
-	}
-	if o.ImplicitExt == nil {
-		o.ImplicitExt = dopts.ImplicitExt
-	}
-	if o.Resolver == nil {
-		o.Resolver = dopts.Resolver
-	}
-
-	for i, ext := range o.ImplicitExt {
-		if !strings.HasPrefix(ext, ".") {
-			o.ImplicitExt[i] = "." + ext
-		}
-	}
-
-	bTrue := true
-
-	jopts := jsonic.Options{
-		Value: &jsonic.ValueOptions{
-			Lex: &bTrue,
-		},
-	}
-
-	j := jsonic.Make(jopts)
-
-	pluginMap := map[string]any{
-		"_opts": &o,
-	}
-	j.Use(MultiSource, pluginMap)
-
-	return j
-}
-
+// defaultOpts returns the plugin defaults. There is no built-in processor
+// for the json kind: a .json source falls through to the NONE (raw text)
+// processor like any other unregistered kind, and a caller who wants it
+// parsed registers a json processor through the processor option. "json"
+// stays an implicit extension, so `@foo` may still find foo.json.
 func defaultOpts() *MultiSourceOptions {
 	return &MultiSourceOptions{
 		MarkChar: "@",
 		Processor: map[string]Processor{
 			NONE:     DefaultProcessor,
-			"json":   JSONProcessor,
 			"jsonic": JsonicProcessor,
 			"jsc":    JsonicProcessor,
 		},
@@ -396,12 +308,48 @@ func defaultOpts() *MultiSourceOptions {
 	}
 }
 
+// withDefaults returns a copy of o with each unset field (MarkChar,
+// Processor, ImplicitExt, Resolver) taken from defaultOpts, and each implicit
+// extension given its leading dot. It applies to a typed *MultiSourceOptions
+// passed under the "_opts" plugin option. A Processor map given here replaces
+// the default map rather than adding to it. The caller's struct and slices
+// are not modified.
+func withDefaults(o *MultiSourceOptions) *MultiSourceOptions {
+	d := defaultOpts()
+	if o == nil {
+		return d
+	}
+	c := *o
+	if c.MarkChar == "" {
+		c.MarkChar = d.MarkChar
+	}
+	if c.Processor == nil {
+		c.Processor = d.Processor
+	}
+	if c.Resolver == nil {
+		c.Resolver = d.Resolver
+	}
+	if c.ImplicitExt == nil {
+		c.ImplicitExt = d.ImplicitExt
+	} else {
+		exts := make([]string, len(c.ImplicitExt))
+		for i, e := range c.ImplicitExt {
+			if !strings.HasPrefix(e, ".") {
+				e = "." + e
+			}
+			exts[i] = e
+		}
+		c.ImplicitExt = exts
+	}
+	return &c
+}
+
 func getOpts(m map[string]any) *MultiSourceOptions {
 	if m == nil {
 		return defaultOpts()
 	}
 	if o, ok := m["_opts"].(*MultiSourceOptions); ok {
-		return o
+		return withDefaults(o)
 	}
 	// Also honour the plain option keys, so `j.Use(MultiSource,
 	// map[string]any{"resolver": r})` configures the plugin the way
@@ -434,8 +382,8 @@ func getOpts(m map[string]any) *MultiSourceOptions {
 	// `implictExt` is the canonical name (TS spells it that way); accept the
 	// Go field spelling too. Values may be a []string or the []any a JSON
 	// options blob produces, and an undotted extension is normalised here —
-	// MakeJsonic does the same, and buildPotentials would otherwise search
-	// for `namefoo` instead of `name.foo`.
+	// withDefaults does the same for "_opts", and buildPotentials would
+	// otherwise search for `namefoo` instead of `name.foo`.
 	for _, k := range []string{"implictExt", "implicitExt"} {
 		exts := toExtList(m[k])
 		if exts == nil {

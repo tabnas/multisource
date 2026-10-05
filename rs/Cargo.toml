@@ -12,19 +12,25 @@ name = "tabnas_multisource"
 path = "src/lib.rs"
 
 [dependencies]
-# The engine, the jsonic base grammar and the directive plugin are
-# consumed as SIBLING CHECKOUTS, the standard tabnas development model:
-# clone https://github.com/tabnas/parser, https://github.com/tabnas/jsonic
-# and https://github.com/tabnas/directive next to this repo. None is
-# published, so there is no registry version to fall back on. jsonic in
-# turn takes https://github.com/tabnas/json the same way.
+# The engine and the directive plugin are consumed as SIBLING CHECKOUTS,
+# the standard tabnas development model: clone
+# https://github.com/tabnas/parser and https://github.com/tabnas/directive
+# next to this repo. Neither is published, so there is no registry version
+# to fall back on. The plugin defines no value grammar and ships no JSON
+# reader: it installs on a host grammar the caller builds (jsonic, for
+# one), and a caller that loads `.json` sources registers a processor for
+# that kind.
 tabnas = { package = "tabnas-parser", path = "../../parser/rs" }
-tabnas-jsonic = { path = "../../jsonic/rs" }
 tabnas-directive = { path = "../../directive/rs" }
 indexmap = "2"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 
 [dev-dependencies]
+# The host grammar the tests install the plugin on, and the strict-JSON
+# reader behind their `json` processor: https://github.com/tabnas/jsonic,
+# another sibling checkout, which in turn takes
+# https://github.com/tabnas/json the same way.
+tabnas-jsonic = { path = "../../jsonic/rs" }
 # The shared fixture loader and runner: the Rust half of @tabnas/support,
 # another sibling checkout (https://github.com/tabnas/support). The
 # `serde_json` feature is the bridge from the engine's `Value::to_json` to

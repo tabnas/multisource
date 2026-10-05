@@ -19,7 +19,7 @@ func TestDeps(t *testing.T) {
 		"c/index.jsc": `c:3`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
 
 	want := map[string]any{
 		"a": float64(1),
@@ -95,7 +95,7 @@ func TestDepsNested(t *testing.T) {
 		"shared.jsonic": `{s:1}`,
 	}
 
-	j := MakeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
+	j := makeJsonic(MultiSourceOptions{Resolver: MakeMemResolver(files)})
 
 	deps := DependencyMap{}
 	_, err := j.ParseMeta(`@main.jsonic`, map[string]any{

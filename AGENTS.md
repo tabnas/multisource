@@ -66,9 +66,10 @@ output — recursively, so a loaded source can itself reference more
 sources.
 
 It is a **grammar/behaviour plugin** for the
-[`tabnas`](https://github.com/tabnas/parser) parsing engine, layered on
-the [`@tabnas/jsonic`](https://github.com/tabnas/jsonic) relaxed-JSON
-grammar. It does **not** define its own value grammar — it installs a
+[`tabnas`](https://github.com/tabnas/parser) parsing engine, installed on
+a host grammar the application chooses (the tests and examples use
+[`@tabnas/jsonic`](https://github.com/tabnas/jsonic)); it depends on no
+grammar, jsonic and json included. It does **not** define its own value grammar — it installs a
 `multisource` rule and wires `@`-marked references into `val`/`pair`
 through the [`@tabnas/directive`](https://github.com/tabnas/directive)
 plugin (a directive is the engine machinery that recognises a marker
@@ -85,12 +86,12 @@ TypeScript (canonical), a Go port and a Rust port.
 |---|---|
 | [`ts/`](ts/) | **Canonical** TypeScript implementation — the `@tabnas/multisource` package. Plugin in `src/multisource.ts`. |
 | [`ts/src/resolver/`](ts/src/resolver/) | The three resolvers — `mem.ts` (in-memory `path → content` map), `file.ts` (disk + `node_modules` lookup, honours `ctx.meta.fs`), `pkg.ts` (`require.resolve`-based package lookup). Each exported as an `@tabnas/multisource/resolver/<name>` subpath. |
-| [`ts/src/processor/`](ts/src/processor/) | The pluggable processors — `jsonic.ts` (`makeJsonicProcessor`, re-parse with the live engine; the `jsonic`/`jsc` kinds) and `js.ts` (`makeJavaScriptProcessor`, `require` the module; the `js` kind). The default (raw string) and `json` (a `Jsonic.make('json')` parser) processors are defined inline in `multisource.ts`. Both files exported as `@tabnas/multisource/processor/<name>` subpaths. |
+| [`ts/src/processor/`](ts/src/processor/) | The pluggable processors — `jsonic.ts` (`makeJsonicProcessor`, re-parse with the live engine; the `jsonic`/`jsc` kinds) and `js.ts` (`makeJavaScriptProcessor`, `require` the module; the `js` kind). The default (raw string) processor is defined inline in `multisource.ts`; there is no built-in `json` processor (an application registers one; the tests use `ts/test/json-processor.ts`). Both files exported as `@tabnas/multisource/processor/<name>` subpaths. |
 | [`go/`](go/) | Go port — `github.com/tabnas/multisource/go`. Plugin in `plugin.go`, options/processors in `multisource.go`, the three resolvers in `resolver.go`. |
-| [`rs/`](rs/) | Rust port — the `tabnas-multisource` crate (library `tabnas_multisource`). Plugin, options and the directive action in `src/lib.rs`, the three resolvers in `src/resolver.rs`, the processors in `src/processor.rs`, the folder scan in `src/preload.rs`, and the filesystem seam in `src/vfs.rs`. Depends on sibling `tabnas/parser`, `tabnas/jsonic` (which brings `tabnas/json`), `tabnas/directive` and, for tests only, `tabnas/support`, `tabnas/path` and `tabnas/debug` checkouts through Cargo `path` dependencies. [`rs/AGENTS.md`](rs/AGENTS.md) has the crate-specific hazards. |
+| [`rs/`](rs/) | Rust port — the `tabnas-multisource` crate (library `tabnas_multisource`). Plugin, options and the directive action in `src/lib.rs`, the three resolvers in `src/resolver.rs`, the processors in `src/processor.rs`, the folder scan in `src/preload.rs`, and the filesystem seam in `src/vfs.rs`. Depends on sibling `tabnas/parser` and `tabnas/directive` and, for tests only, `tabnas/jsonic` (the host grammar, which brings `tabnas/json`), `tabnas/support`, `tabnas/path` and `tabnas/debug` checkouts through Cargo `path` dependencies. [`rs/AGENTS.md`](rs/AGENTS.md) has the crate-specific hazards. |
 | [`test/spec/`](test/spec/) | The **shared** cross-runtime fixtures (`*.tsv`), run by BOTH runtimes. Format and rules: [`test/AGENTS.md`](test/AGENTS.md). |
 | [`ts/test/`](ts/test/) | `multisource.test.ts` (the main suite), `parity.test.ts` (runs `test/spec/*.tsv`), `perf.test.ts`, `debug-model.test.ts`, `doc-examples.test.ts`, and the fixture source files used as resolver inputs (`t0*.jsonic`, `t04.foo`, `k0*.{jsonic,js,json,jsc}`, `e0*.jsonic`, `f01/`, `rel/`). |
-| [`go/`](go/) tests | `multisource_test.go` (main), `parity_test.go` (runs `test/spec/*.tsv`), plus `fs_test.go`, `resolver_test.go`, `preload_test.go`, `deps_test.go`, `nested_test.go`, `cycle_test.go`, `colon_chain_test.go`, `perf_test.go`. |
+| [`go/`](go/) tests | `multisource_test.go` (main), `parity_test.go` (runs `test/spec/*.tsv`), plus `fs_test.go`, `resolver_test.go`, `preload_test.go`, `deps_test.go`, `nested_test.go`, `cycle_test.go`, `colon_chain_test.go`, and `helpers_test.go` (`makeJsonic` and the test `jsonProcessor`). |
 | [`rs/tests/`](rs/tests/) | `parity_test.rs` (runs `test/spec/*.tsv`), `multisource_test.rs` (main), `file_corpus_test.rs` (the real `ts/test/*` files), `untrusted_test.rs`, `divergence_test.rs`, `debug_model_test.rs`, `perf_test.rs`, `version_test.rs`. |
 | [`DIVERGENCE.md`](DIVERGENCE.md) | Where a port produces a different result for the same input, with the measured table and who owns the repair. |
 | `ts/doc/`, `go/doc/` | Per-runtime Diátaxis docs — `tutorial.md`, `guide.md`, `reference.md`, `concepts.md`. |
@@ -103,11 +104,13 @@ Both runtimes depend on the unpublished `@tabnas` siblings via a
 publish tagged releases):
 
 - TypeScript: the runtime tabnas packages are `peerDependencies` in
-  `ts/package.json` — `@tabnas/parser`, `@tabnas/jsonic`,
-  `@tabnas/directive`, `@tabnas/path`, all at `">=0"` (they are
-  unpublished, so the version range is deliberately open), and
-  `peerDependenciesMeta` marks `@tabnas/path` optional. The same four
-  plus `@tabnas/debug` and `@tabnas/railroad` are `"*"`
+  `ts/package.json` — `@tabnas/parser`, `@tabnas/directive` and
+  `@tabnas/path`, all at `">=0"`, and `peerDependenciesMeta` marks
+  `@tabnas/path` optional. There is no grammar among them: jsonic was
+  dropped on the maintainer's instruction of 2026-10-05, and json with it
+  (an application chooses the host grammar and registers its own `json`
+  processor). The three, plus `@tabnas/jsonic` (the tests' host grammar
+  and JSON parser), `@tabnas/debug` and `@tabnas/railroad`, are `"*"`
   **devDependencies**; locally they resolve through the
   `ts/node_modules/@tabnas/*` symlinks into the sibling checkouts that
   `admin/scripts/link.sh` wires — debug for the `debug-model` composition
@@ -117,11 +120,14 @@ publish tagged releases):
   `jsonic-multisource-pkg-test` (a published fixture package the `pkg`
   resolver loads).
 - Go: `go/go.mod` requires `github.com/tabnas/{parser,directive,jsonic,path}/go`
-  (with `json/go` indirect). There are **no `replace` directives** in
+  (with `json/go` indirect); jsonic and path are for the tests only. There are **no `replace` directives** in
   `go.mod` and no checked-in `go.work`: the sibling checkouts are resolved
   by the `go.work` that `admin/scripts/link.sh` generates (CI mirrors it).
-  `plugin.go` imports `jsonic` (which re-exports the engine types) and
-  `directive`; `path` is used by the Go **test** only.
+  The non-test files import the engine (`parser/go`, as `tabnas`) and
+  `directive`, nothing else from the fleet; the tests import `jsonic` for
+  their host grammar (`helpers_test.go`) and `path`. The C library in
+  `go/clib` runs on the bare engine with the caller's GrammarSpec, like
+  directive's and path's.
 
 Clone the siblings (`parser jsonic directive path`, plus
 `debug`/`railroad` for the optional test and diagram) next to this repo
@@ -184,8 +190,9 @@ and here rather than silently diverging.
   `.jsonic .jsc .json .js`) or a folder `index.*` file (`buildPotentials`
   in `resolver/mem.ts`).
 - **Processor map.** `kind` selects a `Processor` (`getProcessor`, with
-  one level of string aliasing). Defaults: `''` → raw string, `json` →
-  `Jsonic.make('json')`, `jsonic`/`jsc` → re-parse with the live engine,
+  one level of string aliasing). Defaults: `''` → raw string,
+  `jsonic`/`jsc` → re-parse with the live engine (no `json` default: a
+  `.json` source is raw text until the application registers a processor),
   `js` → `require` the module. Unknown extension falls back to the `''`
   (raw-string) processor.
 - **Splice.** For a `pair` source (`{@foo}`), the loaded map is merged

@@ -16,13 +16,17 @@ in place, with the parsed contents of another source.
 
 ## The engine relationship
 
-multisource is a plugin, not a parser. The engine is `github.com/tabnas/jsonic/go`
-(the `jsonic.Jsonic` type), which carries the relaxed-JSON grammar.
-`MakeJsonic` builds a `*jsonic.Jsonic`, applies default options, and installs
-the plugin:
+multisource is a plugin, not a parser. The engine is
+`github.com/tabnas/parser/go` (the `tabnas.Tabnas` type), and the package
+builds no parser of its own. You build the host parser, usually a jsonic
+parser from `github.com/tabnas/jsonic/go`, which installs the relaxed-JSON
+grammar on the engine. Then you install the plugin on it with its options:
 
 ```go
-j := tabnasmultisource.MakeJsonic(opts)
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
+})
 ```
 
 The plugin builds on two further Go packages:
@@ -33,9 +37,9 @@ The plugin builds on two further Go packages:
 - **`github.com/tabnas/path/go`**. Composes on the same instance to track key
   paths through references when installed.
 
-Because `JsonicProcessor` re-parses through the *same* engine (`j.Parse`), a
-referenced `.jsonic` source can itself contain references, resolved
-recursively with the same grammar.
+Because `JsonicProcessor` re-parses through the *same* host parser
+(`j.ParseMeta`), a referenced `.jsonic` source can itself contain references,
+resolved recursively with the same grammar.
 
 ## The resolve → process → splice pipeline
 
@@ -59,8 +63,12 @@ function, you can supply your own for HTTP, databases, or test stubs.
 A **processor** turns `res.Src` into `res.Val`, keyed by `Kind`:
 
 - `NONE` (`""`). The raw string.
-- `json`: `encoding/json`.
-- `jsonic` / `jsc`. Re-parse through the engine, enabling recursion.
+- `jsonic` / `jsc`. Re-parse through the host parser, enabling recursion.
+
+There is no `json` processor. A `.json` source goes to `NONE` and its value is
+the raw text, as for any kind with no processor, until you register a
+processor for `json` through the `processor` option, built with the JSON
+parser of your choice.
 
 `getProcessor` looks up `Processor[kind]`, then falls back to `Processor[NONE]`,
 then to `DefaultProcessor`.
@@ -74,7 +82,7 @@ then to `DefaultProcessor`.
   map's keys are merged into the surrounding map.
 
 The merge honours the engine's policy: `ctx.Cfg.MapMerge` per key if set, else
-a deep merge (`jsonic.Deep`), else a plain overwrite. The merge writes
+a deep merge (`tabnas.Deep`), else a plain overwrite. The merge writes
 key-by-key into the grandparent map so existing nested values survive and a
 pair following the directive writes into the same node.
 
@@ -150,8 +158,8 @@ package tracks it but differs in scope and idiom:
   `multisource_not_found` (with the searched paths and a source location), and
   a source that is an ancestor of itself raises `multisource_cycle` (naming the
   loop). Go carries a processing failure back through `Resolution.Err` and
-  re-raises it, so a nested `@missing`, or malformed `.json` content, fails the
-  whole parse rather than silently substituting raw text, as in TS.
+  re-raises it, so a nested `@missing`, or an error a processor reports, fails
+  the whole parse rather than silently substituting raw text, as in TS.
 - **Dependency tracking.** Both record a `DependencyMap` when you pass an empty
   `deps` map in the `multisource` parse meta (Go: a `DependencyMap` under
   `ctx.Meta["multisource"]["deps"]`, via `ParseMeta`). Go's `TOP` is a string
@@ -159,7 +167,7 @@ package tracks it but differs in scope and idiom:
   than a JS `Symbol`, and `Dependency.Wen` is Unix milliseconds (`int64`)
   rather than a JS `Date.now()` number.
 - **Parse meta.** TS threads meta through `parse(src, meta)`; Go uses
-  `Jsonic.ParseMeta(src, map[string]any)`. The same keys are honoured
+  `ParseMeta(src, map[string]any)` on the host parser. The same keys are honoured
   (`multisource.path`, `multisource.deps`, `multisource.parents`, `fs`).
 - **Number type.** Both produce numbers, but Go materialises them as `float64`
   in `map[string]any`, the jsonic Go default. A non-string `path` in an
@@ -167,9 +175,7 @@ package tracks it but differs in scope and idiom:
   coerces it, by ECMAScript `Number::toString` rather than by `%v`, so the
   same reference names the same source in both runtimes
   (`jsNumberToString` in `number.go`; `test/spec/numeric-path.tsv`).
-- **Performance.** Go's no-options `Parse` caches a single default parser
-  (`sync.Once`) because building the grammar dominates a parse; the TS package
-  does not need this because callers reuse a `Tabnas` instance directly.
-- **Values type.** The Go engine is created with `ValueOptions.Lex` enabled so
-  bare values lex correctly alongside the `@` mark; this is engine
-  configuration the TS side handles through its own value plugin.
+- **Options.** TS merges plugin options with the defaults. Go reads the same
+  plain keys (`resolver`, `path`, `markchar`, `processor`, `implictExt`,
+  `fs`) over the defaults, and also accepts one typed `*MultiSourceOptions`
+  under `"_opts"`, whose unset fields take the defaults.

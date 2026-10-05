@@ -2,12 +2,12 @@
 
 import * as SystemFs from 'node:fs'
 
-// The engine is the tabnas parser; jsonic supplies the relaxed-JSON
-// grammar. Engine types come from @tabnas/parser; the legacy Jsonic
-// factory (still provided by @tabnas/jsonic) backs the strict-JSON
-// processor below.
+// The engine is the tabnas parser, and the plugin installs on whatever
+// host grammar the application has built on it (jsonic, for one): it
+// imports no grammar of its own. Nor does it ship a JSON source: an
+// application that includes `.json` files registers a processor for the
+// `json` kind, built with the JSON parser of its choice.
 import { Tabnas, Context, Rule, Plugin } from '@tabnas/parser'
-import { Jsonic } from '@tabnas/jsonic'
 import { Directive, DirectiveOptions } from '@tabnas/directive'
 
 import { makeJsonicProcessor } from './processor/jsonic'
@@ -325,14 +325,6 @@ function makeProcessor(process: (src: string, res: Resolution) => any) {
 // Default is just to insert file contents as a string.
 const defaultProcessor = makeProcessor((src: string) => src)
 
-const jsonicJsonParser = Jsonic.make('json' as any)
-
-// TODO: use json plugin to get better error msgs.
-const jsonProcessor = makeProcessor((src: string, res: Resolution) =>
-  // null == src ? undefined : JSON.parse(src)
-  null == src ? undefined : jsonicJsonParser(src, { fileName: res.path }),
-)
-
 
 // let proc = processor[res.kind] || processor[NONE]
 function getProcessor(kind: string, procmap: Record<string, Processor>): Processor {
@@ -360,7 +352,8 @@ MultiSource.defaults = {
     [NONE]: defaultProcessor,
     jsonic: jsonicProcessor,
     jsc: jsonicProcessor,
-    json: jsonProcessor,
+    // No `json` entry: a `.json` source is raw text, as any kind without a
+    // processor is, until the application registers one.
     js: jsProcessor,
   },
   implictExt: ['jsonic', 'jsc', 'json', 'js'],

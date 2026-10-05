@@ -19,8 +19,9 @@ document transparently parses everything it references.
 ## The engine relationship
 
 multisource is a plugin, not a parser. The parser engine is `@tabnas/parser`
-(the `Tabnas` class); `@tabnas/jsonic` supplies the relaxed-JSON grammar that
-lets you write `a:1`. You assemble them:
+(the `Tabnas` class); a host grammar, here `@tabnas/jsonic`, supplies the
+relaxed syntax that lets you write `a:1`. multisource depends on neither
+grammar: you choose the host and assemble them:
 
 ```ts
 new Tabnas().use(jsonic).use(MultiSource, options)
@@ -72,13 +73,17 @@ A **processor** turns the resolved `src` string into a value, keyed by the
 source's `kind` (its extension without the dot). The default set:
 
 - `''` (the `NONE` fallback). Returns the raw string.
-- `json`. Strict JSON.
 - `jsonic` / `jsc`. Re-parse through the engine, enabling recursion.
 - `js`: `require` the module and unwrap a `.default` export.
 
 Processor selection allows one level of *aliasing*: a string value names
 another kind, so `{ conf: 'jsonic' }` routes `.conf` files through the jsonic
 processor. Anything with no matching processor falls back to `NONE`.
+
+There is no `json` processor in the default set. multisource depends on no
+grammar, the JSON one included, so code that includes `.json` files
+registers a processor for the `json` kind with the parser it prefers;
+until it does, a `.json` source is its raw text.
 
 ### 3. Splice
 

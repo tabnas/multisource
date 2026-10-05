@@ -11,9 +11,9 @@ mod common;
 
 use std::path::Path;
 
-use tabnas_multisource::{make_with, FileResolver, MultiSourceOptions};
+use tabnas_multisource::{FileResolver, MultiSourceOptions};
 
-use common::to_json;
+use common::{make_with, to_json, with_json};
 
 fn ts_test_dir() -> String {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -27,6 +27,15 @@ fn ts_test_dir() -> String {
 
 fn file_parser() -> tabnas::Tabnas {
     make_with(MultiSourceOptions::new(FileResolver::new()).with_path(ts_test_dir()))
+}
+
+/// [`file_parser`] with a `json` processor registered, for the cases
+/// whose files include `k03.json`. The plugin ships none, so without it
+/// that file would be raw text.
+fn file_parser_with_json() -> tabnas::Tabnas {
+    make_with(with_json(
+        MultiSourceOptions::new(FileResolver::new()).with_path(ts_test_dir()),
+    ))
 }
 
 /// Ports the TypeScript `basic-file` test: a reference beside the base
@@ -91,10 +100,11 @@ fn an_extensionless_file_reference_finds_the_jsonic_file() {
 }
 
 /// Ports the TypeScript `file-kind` test for the kinds Rust has: a
-/// `.jsonic` source re-parses and a `.json` source reads as JSON.
+/// `.jsonic` source re-parses and a `.json` source reads as JSON through
+/// the registered `json` processor.
 #[test]
 fn the_file_kinds_select_their_processors() {
-    let parser = file_parser();
+    let parser = file_parser_with_json();
     assert_eq!(
         to_json(
             &parser
@@ -116,7 +126,7 @@ fn the_file_kinds_select_their_processors() {
 /// `../DIVERGENCE.md` section 1 and `tests/divergence_test.rs`.
 #[test]
 fn a_jsc_source_loads_the_tree_of_kinds_beneath_it() {
-    let parser = file_parser();
+    let parser = file_parser_with_json();
     let value = parser
         .parse(r#"@"k04.jsc""#)
         .expect("the chain of files loads");

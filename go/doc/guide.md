@@ -3,6 +3,11 @@
 Focused recipes for real tasks. Each assumes you know the basics from the
 [tutorial](./tutorial.md). The package identifier is `tabnasmultisource`.
 
+The examples build the host parser with `jsonic.Make()`, from the
+`github.com/tabnas/jsonic/go` package, and install the plugin on it with
+`j.Use(tabnasmultisource.MultiSource, options)`. The
+[reference](./reference.md#plugin-options) lists the option keys.
+
 ## Merge a referenced map into its surroundings
 
 When a reference is the only thing in a map, its keys are merged into the
@@ -10,8 +15,9 @@ parent map instead of nesting under a key. Compare:
 
 ```go
 files := map[string]string{"a.jsonic": "{a:1, b:2}"}
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 j.Parse(`{x: @a.jsonic}`)
@@ -29,8 +35,9 @@ files := map[string]string{
     "base.jsonic":     `{name:"svc", port:8080}`,
     "override.jsonic": `{port:9090}`,
 }
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 
 j.Parse(`{@base.jsonic, @override.jsonic}`)
@@ -49,13 +56,14 @@ dot. Register your own to teach multisource a new format:
 import (
     "strings"
 
-    tabnasmultisource "github.com/tabnas/multisource/go"
     jsonic "github.com/tabnas/jsonic/go"
+    tabnasmultisource "github.com/tabnas/multisource/go"
+    tabnas "github.com/tabnas/parser/go"
 )
 
 csvProc := func(res *tabnasmultisource.Resolution,
     opts *tabnasmultisource.MultiSourceOptions,
-    ctx *jsonic.Context, j *jsonic.Jsonic) {
+    ctx *tabnas.Context, j *tabnas.Tabnas) {
     parts := make([]any, 0)
     for _, s := range strings.Split(res.Src, ",") {
         parts = append(parts, strings.TrimSpace(s))
@@ -63,12 +71,12 @@ csvProc := func(res *tabnasmultisource.Resolution,
     res.Val = parts
 }
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(
         map[string]string{"data.csv": "a,b,c"}),
-    Processor: map[string]tabnasmultisource.Processor{
-        tabnasmultisource.NONE: tabnasmultisource.DefaultProcessor,
-        "csv":                  csvProc,
+    "processor": map[string]tabnasmultisource.Processor{
+        "csv": csvProc,
     },
 })
 
@@ -76,19 +84,23 @@ j.Parse(`{rows: @data.csv}`)
 // => map[string]any{"rows": []any{"a", "b", "c"}}
 ```
 
-When you supply a custom `Processor` map, include the `NONE` key (the default
-fallback) so references whose kind you have not registered still resolve.
+The `processor` option adds its entries to the default processors, so kinds
+you do not register keep theirs. A typed `MultiSourceOptions` passed under
+`"_opts"` is different: its `Processor` map replaces the defaults, so include
+the `NONE` key there, the fallback for references whose kind you have not
+registered.
 
 ## Change the mark character
 
 `@` is the default. If it collides with your data, pick another character with
-`MarkChar`:
+`markchar`:
 
 ```go
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(
         map[string]string{"a.jsonic": "{a:1}"}),
-    MarkChar: "$",
+    "markchar": "$",
 })
 
 j.Parse(`{x: $a.jsonic}`)
@@ -97,14 +109,15 @@ j.Parse(`{x: $a.jsonic}`)
 
 ## Set a base path for relative references
 
-`Path` prefixes every relative reference. With the memory resolver this is
+`path` prefixes every relative reference. With the memory resolver this is
 string concatenation against the map keys:
 
 ```go
 files := map[string]string{"data/a.jsonic": "{a:1}"}
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
-    Path:     "data",
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
+    "path":     "data",
 })
 
 j.Parse(`{x: @a.jsonic}`)
@@ -115,9 +128,10 @@ Absolute references (starting with `/`) ignore the base path:
 
 ```go
 files := map[string]string{"/etc/config.jsonic": `{env:"prod"}`}
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
-    Path:     "ignored",
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
+    "path":     "ignored",
 })
 
 j.Parse(`{cfg: @/etc/config.jsonic}`)
@@ -126,15 +140,44 @@ j.Parse(`{cfg: @/etc/config.jsonic}`)
 
 ## Load JSON sources
 
-`.json` references are parsed by the built-in `JSONProcessor` (Go's stdlib
-`encoding/json`):
+The package has no built-in processor for the `json` kind. Without one, the
+value of a `.json` source is its raw text, as for any kind with no processor.
+To parse it, register a processor for `json` built with the JSON parser of
+your choice. This one uses Go's stdlib `encoding/json`:
 
 ```go
+import (
+    "encoding/json"
+
+    jsonic "github.com/tabnas/jsonic/go"
+    tabnasmultisource "github.com/tabnas/multisource/go"
+    tabnas "github.com/tabnas/parser/go"
+)
+
+jsonProc := func(res *tabnasmultisource.Resolution,
+    opts *tabnasmultisource.MultiSourceOptions,
+    ctx *tabnas.Context, j *tabnas.Tabnas) {
+    if res.Src == "" {
+        res.Val = nil
+        return
+    }
+    var val any
+    if err := json.Unmarshal([]byte(res.Src), &val); err != nil {
+        res.Err = err // malformed JSON fails the parse
+        return
+    }
+    res.Val = val
+}
+
 files := map[string]string{
     "config.json": `{"host":"localhost","port":8080}`,
 }
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
+    "processor": map[string]tabnasmultisource.Processor{
+        "json": jsonProc,
+    },
 })
 
 j.Parse(`{config: @config.json}`)
@@ -142,17 +185,22 @@ j.Parse(`{config: @config.json}`)
 //      "host": "localhost", "port": float64(8080)}}
 ```
 
+Without the `json` entry, `config` is the raw text
+`{"host":"localhost","port":8080}` as a string. `.json` is still an implicit
+extension, so `@config` finds `config.json` too, and the processor you
+registered handles it.
+
 ## Supply a custom resolver
 
 A `Resolver` is a function
-`func(spec PathSpec, opts *MultiSourceOptions, ctx *jsonic.Context) Resolution`.
+`func(spec PathSpec, opts *MultiSourceOptions, ctx *tabnas.Context) Resolution`.
 It must set `Found` and, when found, `Src` and `Full`. Use `ResolvePathSpec`
 to do the shared path normalisation:
 
 ```go
-httpResolver := func(spec tabnasmultisource.PathSpec,
+var httpResolver tabnasmultisource.Resolver = func(spec tabnasmultisource.PathSpec,
     opts *tabnasmultisource.MultiSourceOptions,
-    ctx *jsonic.Context) tabnasmultisource.Resolution {
+    ctx *tabnas.Context) tabnasmultisource.Resolution {
     body := httpGet(spec.Full) // your own fetch
     return tabnasmultisource.Resolution{
         PathSpec: spec,
@@ -161,26 +209,32 @@ httpResolver := func(spec tabnasmultisource.PathSpec,
     }
 }
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: httpResolver,
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": httpResolver,
 })
 ```
+
+Declare the function with the `tabnasmultisource.Resolver` type, as here. The
+plugin reads the `resolver` option as a `Resolver`, and a plain function value
+of the same signature is not one, so the plugin ignores it.
 
 The selected processor still runs on the resolution, picked from `spec.Kind`.
 
 ## Handle a missing source
 
-A reference that resolves to nothing produces `nil` for that value rather than
-an error:
+A reference that resolves to nothing fails the parse with
+`multisource_not_found`, listing the paths it searched:
 
 ```go
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(map[string]string{}),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(map[string]string{}),
 })
 
 out, err := j.Parse(`{x: @missing}`)
-// err == nil
-// out == map[string]any{"x": nil}
+// out == nil
+// err reports multisource_not_found ("source not found: missing")
 ```
 
 ## Track the dependency tree
@@ -191,9 +245,10 @@ plugin fills it with a flat map of `target → { source → Dependency }`,
 recording which source pulled in which:
 
 ```go
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeFileResolver(),
-    Path:     baseDir,
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeFileResolver(),
+    "path":     baseDir,
 })
 
 deps := tabnasmultisource.DependencyMap{}
@@ -221,10 +276,11 @@ filemap := tabnasmultisource.PreloadFiles(tabnasmultisource.PreloadOptions{
     Recursive: true,
 })
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeFileResolver(
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeFileResolver(
         tabnasmultisource.FileResolverOptions{Preload: filemap}),
-    Path: configDir,
+    "path": configDir,
 })
 
 out, err := j.Parse(`@"app.jsonic"`)
@@ -239,8 +295,9 @@ instance to track key paths through references:
 ```go
 import path "github.com/tabnas/path/go"
 
-j := tabnasmultisource.MakeJsonic(tabnasmultisource.MultiSourceOptions{
-    Resolver: tabnasmultisource.MakeMemResolver(files),
+j := jsonic.Make()
+j.Use(tabnasmultisource.MultiSource, map[string]any{
+    "resolver": tabnasmultisource.MakeMemResolver(files),
 })
 j.Use(path.Path, nil)
 ```

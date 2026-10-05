@@ -157,7 +157,7 @@ func TestPreloadFileResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	j := MakeJsonic(MultiSourceOptions{
+	j := makeJsonic(MultiSourceOptions{
 		Resolver: MakeFileResolver(FileResolverOptions{Preload: filemap}),
 		Path:     dir,
 		Preload: &PreloadOptions{ // Declarative record of the scan, as in TS.

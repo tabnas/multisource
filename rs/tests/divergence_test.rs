@@ -11,9 +11,9 @@ mod common;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use tabnas_multisource::{make_with, FileResolver, MapResolver, MultiSourceOptions};
+use tabnas_multisource::{FileResolver, MapResolver, MultiSourceOptions};
 
-use common::to_json;
+use common::{make_with, to_json};
 
 fn ts_test_dir() -> String {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	jsonic "github.com/tabnas/jsonic/go"
+	tabnas "github.com/tabnas/parser/go"
 )
 
 // FileResolverOptions configures MakeFileResolver.
@@ -39,7 +39,7 @@ func MakeFileResolver(opts ...FileResolverOptions) Resolver {
 		o = opts[0]
 	}
 
-	return func(spec PathSpec, mopts *MultiSourceOptions, ctx *jsonic.Context) Resolution {
+	return func(spec PathSpec, mopts *MultiSourceOptions, ctx *tabnas.Context) Resolution {
 		// A pathfinder transforms the raw reference before resolution.
 		if o.PathFinder != nil {
 			spec = ResolvePathSpec(o.PathFinder(spec.Path), spec.Base)
@@ -105,7 +105,7 @@ func MakePkgResolver(opts ...PkgResolverOptions) Resolver {
 		o = opts[0]
 	}
 
-	return func(spec PathSpec, mopts *MultiSourceOptions, ctx *jsonic.Context) Resolution {
+	return func(spec PathSpec, mopts *MultiSourceOptions, ctx *tabnas.Context) Resolution {
 		res := Resolution{PathSpec: spec, Found: false}
 		ref := spec.Path
 		if ref == "" {
@@ -236,7 +236,7 @@ type vfs interface {
 
 // resolveVFS selects the filesystem view: a per-parse ctx.Meta["fs"] override,
 // then MultiSourceOptions.FS, then the OS filesystem.
-func resolveVFS(opts *MultiSourceOptions, ctx *jsonic.Context) vfs {
+func resolveVFS(opts *MultiSourceOptions, ctx *tabnas.Context) vfs {
 	if ctx != nil && ctx.Meta != nil {
 		if f, ok := ctx.Meta["fs"].(fs.FS); ok && f != nil {
 			return ioVFS{f}

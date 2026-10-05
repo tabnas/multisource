@@ -55,9 +55,13 @@ func TestSpec(t *testing.T) {
 				}
 			}
 
+			// The plugin has no built-in json processor; the fixtures
+			// expect .json sources parsed as JSON, so register one, as a
+			// user would.
 			j := jsonic.Make()
 			if err := j.Use(MultiSource, map[string]any{
-				"resolver": MakeMemResolver(mem),
+				"resolver":  MakeMemResolver(mem),
+				"processor": map[string]Processor{"json": jsonProcessor},
 			}); err != nil {
 				return nil, err
 			}
