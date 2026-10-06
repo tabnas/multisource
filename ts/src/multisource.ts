@@ -479,7 +479,7 @@ const meta = {
 // VERSION is this package's version. It MUST equal package.json "version":
 // the release orchestrator rewrites both, and test/version.test.ts fails the
 // build if they drift. Mirrors `const VERSION` in go/multisource.go.
-const VERSION = '0.6.0'
+const VERSION = '0.6.1'
 
 export type {
   Resolver,
