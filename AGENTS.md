@@ -104,12 +104,12 @@ Both runtimes depend on the unpublished `@tabnas` siblings via a
 publish tagged releases):
 
 - TypeScript: the runtime tabnas packages are `peerDependencies` in
-  `ts/package.json` — `@tabnas/parser`, `@tabnas/directive` and
-  `@tabnas/path`, all at `">=0"`, and `peerDependenciesMeta` marks
-  `@tabnas/path` optional. There is no grammar among them: jsonic was
+  `ts/package.json` — `@tabnas/parser` and `@tabnas/directive`, both at
+  `">=0"`. There is no grammar among them: jsonic was
   dropped on the maintainer's instruction of 2026-10-05, and json with it
   (an application chooses the host grammar and registers its own `json`
-  processor). The three, plus `@tabnas/jsonic` (the tests' host grammar
+  processor). The two, plus `@tabnas/path` (the composition tests),
+  `@tabnas/jsonic` (the tests' host grammar
   and JSON parser), `@tabnas/debug` and `@tabnas/railroad`, are `"*"`
   **devDependencies**; locally they resolve through the
   `ts/node_modules/@tabnas/*` symlinks into the sibling checkouts that
@@ -214,13 +214,15 @@ and here rather than silently diverging.
 
 ### Gotchas an agent must know
 
-- **`@tabnas/path` is an optional peer and is not imported by `src/`.** It
+- **`@tabnas/path` is not a dependency, and `src/` does not import it.** It
   is the path-diving plugin; multisource composes with it when an
   application installs it (a reference can land at a dived key, read from
   `rule.k.path`), and that composition is exercised in the tests
   (`ts/test/multisource.test.ts` `.use(Path)`, `go/multisource_test.go`
-  `path.Path`). Keep it an optional peer, a devDependency and a Go
-  require, so the composition tests resolve.
+  `path.Path`). It is a devDependency and a Go require for those tests
+  only. It was an optional peer, kept so that npm would version-check an
+  installed path plugin; the maintainer dropped that peer on 2026-10-06,
+  so no port declares it at run time.
 - **`ctx.meta.fs` is the filesystem injection point.** The `file` and
   `pkg` resolvers read it (falling back to `node:fs`), which is how the
   `memfs`-based tests and the in-process preload work. Don't hardcode

@@ -67,13 +67,7 @@
   },
   "peerDependencies": {
     "@tabnas/directive": ">=0",
-    "@tabnas/parser": ">=0",
-    "@tabnas/path": ">=0"
-  },
-  "peerDependenciesMeta": {
-    "@tabnas/path": {
-      "optional": true
-    }
+    "@tabnas/parser": ">=0"
   },
   "engines": {
     "node": ">=24"

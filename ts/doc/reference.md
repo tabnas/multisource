@@ -9,8 +9,9 @@ imports below use ESM syntax for brevity.
 npm install @tabnas/multisource @tabnas/parser @tabnas/jsonic
 ```
 
-Peer dependencies: `@tabnas/parser` (the engine), `@tabnas/directive`, and
-optionally `@tabnas/path`. The host grammar is yours to choose:
+Peer dependencies: `@tabnas/parser` (the engine) and `@tabnas/directive`.
+multisource also composes with `@tabnas/path` when your app installs
+it. The host grammar is yours to choose:
 these examples install `@tabnas/jsonic`, which multisource does not depend on.
 
 ## Entry points (package exports)
