@@ -25,7 +25,7 @@ it.
 ## Constants and package metadata
 
 ```go
-const VERSION = "0.4.4"   // module version; must equal ts/package.json
+const VERSION = "x.y.z"   // module version; must equal ts/package.json
 const NONE = ""           // the unknown/empty kind (default-processor key)
 const TOP = "\x00TOP"     // dependency-tree top marker (never a valid path)
 
