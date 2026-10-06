@@ -374,9 +374,12 @@ accepts the publish. Pushing a tag by hand is the orchestrator's path
 
 The steps, in order:
 
-1. Bump all **three** version sites together — `ts/package.json`, `VERSION`
-   in `ts/src/multisource.ts` and `const VERSION` in `go/multisource.go`.
-   Drift is caught by `ts/test/version.test.ts` and `go/version_test.go`.
+1. Bump every version site together — `ts/package.json`, `VERSION` in
+   `ts/src/multisource.ts`, `const VERSION` in `go/multisource.go`,
+   `version` in `rs/Cargo.toml` with the crate's own `rs/Cargo.lock` entry,
+   and `pub const VERSION` in `rs/src/lib.rs`. Drift is caught by
+   `ts/test/version.test.ts`, `go/version_test.go` and
+   `rs/tests/version_test.rs`.
 2. Verify against the **published** dependencies rather than your checkout.
    The release runner installs fresh from the registry; a working tree
    usually does not, so reproduce that before believing anything:
