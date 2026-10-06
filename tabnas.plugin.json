@@ -4,6 +4,7 @@
   "go": "github.com/tabnas/multisource/go",
   "rust": "tabnas-multisource",
   "description": "Multi-source document assembly for the tabnas engine: resolves and merges included sources.",
+  "base": "@tabnas/directive",
   "engine": "@tabnas/parser",
   "specDir": "test/spec",
   "clib": {
