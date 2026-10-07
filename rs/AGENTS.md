@@ -29,8 +29,9 @@ Crate `tabnas-multisource`, library `tabnas_multisource`. The engine
 (`tabnas`) and the directive plugin (`tabnas-directive`) are the run
 time **path dependencies on sibling checkouts**. The dev-only ones are
 sibling checkouts too: `tabnas-jsonic` (which brings `tabnas-json`),
-`tabnas-support`, `tabnas-path` and `tabnas-debug`. None is published,
-so there is no registry version to fall back on.
+`tabnas-support`, `tabnas-path` and `tabnas-debug`. All of them are on
+crates.io, but the committed manifest names them by path alone, so
+there is no registry version to fall back on.
 
 The crate has no host grammar and no JSON reader at run time, by the
 maintainer's instruction of 2026-10-05. A caller builds the host parser

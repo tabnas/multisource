@@ -15,11 +15,13 @@ path = "src/lib.rs"
 # The engine and the directive plugin are consumed as SIBLING CHECKOUTS,
 # the standard tabnas development model: clone
 # https://github.com/tabnas/parser and https://github.com/tabnas/directive
-# next to this repo. Neither is published, so there is no registry version
-# to fall back on. The plugin defines no value grammar and ships no JSON
-# reader: it installs on a host grammar the caller builds (jsonic, for
-# one), and a caller that loads `.json` sources registers a processor for
-# that kind.
+# next to this repo. Both are on crates.io, but this committed manifest
+# names them by path alone, so there is no registry version to fall back
+# on; crates-release.yml rewrites the paths into crates.io requirements
+# when it publishes this crate. The plugin defines no value grammar and
+# ships no JSON reader: it installs on a host grammar the caller builds
+# (jsonic, for one), and a caller that loads `.json` sources registers a
+# processor for that kind.
 tabnas = { package = "tabnas-parser", path = "../../parser/rs" }
 tabnas-directive = { path = "../../directive/rs" }
 indexmap = "2"
