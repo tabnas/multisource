@@ -89,7 +89,7 @@ TypeScript (canonical), a Go port and a Rust port.
 | [`ts/src/processor/`](ts/src/processor/) | The pluggable processors — `jsonic.ts` (`makeJsonicProcessor`, re-parse with the live engine; the `jsonic`/`jsc` kinds) and `js.ts` (`makeJavaScriptProcessor`, `require` the module; the `js` kind). The default (raw string) processor is defined inline in `multisource.ts`; there is no built-in `json` processor (an application registers one; the tests use `ts/test/json-processor.ts`). Both files exported as `@tabnas/multisource/processor/<name>` subpaths. |
 | [`go/`](go/) | Go port — `github.com/tabnas/multisource/go`. Plugin in `plugin.go`, options/processors in `multisource.go`, the three resolvers in `resolver.go`. |
 | [`rs/`](rs/) | Rust port — the `tabnas-multisource` crate (library `tabnas_multisource`). Plugin, options and the directive action in `src/lib.rs`, the three resolvers in `src/resolver.rs`, the processors in `src/processor.rs`, the folder scan in `src/preload.rs`, and the filesystem seam in `src/vfs.rs`. Depends on sibling `tabnas/parser` and `tabnas/directive` and, for tests only, `tabnas/jsonic` (the host grammar, which brings `tabnas/json`), `tabnas/support`, `tabnas/path` and `tabnas/debug` checkouts through Cargo `path` dependencies. [`rs/AGENTS.md`](rs/AGENTS.md) has the crate-specific hazards. |
-| [`test/spec/`](test/spec/) | The **shared** cross-runtime fixtures (`*.tsv`), run by BOTH runtimes. Format and rules: [`test/AGENTS.md`](test/AGENTS.md). |
+| [`test/spec/`](test/spec/) | The **shared** cross-runtime fixtures (`*.tsv`), run by EVERY runtime. Format and rules: [`test/AGENTS.md`](test/AGENTS.md). |
 | [`ts/test/`](ts/test/) | `multisource.test.ts` (the main suite), `parity.test.ts` (runs `test/spec/*.tsv`), `perf.test.ts`, `debug-model.test.ts`, `doc-examples.test.ts`, and the fixture source files used as resolver inputs (`t0*.jsonic`, `t04.foo`, `k0*.{jsonic,js,json,jsc}`, `e0*.jsonic`, `f01/`, `rel/`). |
 | [`go/`](go/) tests | `multisource_test.go` (main), `parity_test.go` (runs `test/spec/*.tsv`), plus `fs_test.go`, `resolver_test.go`, `preload_test.go`, `deps_test.go`, `nested_test.go`, `cycle_test.go`, `colon_chain_test.go`, and `helpers_test.go` (`makeJsonic` and the test `jsonProcessor`). |
 | [`rs/tests/`](rs/tests/) | `parity_test.rs` (runs `test/spec/*.tsv`), `multisource_test.rs` (main), `file_corpus_test.rs` (the real `ts/test/*` files), `untrusted_test.rs`, `divergence_test.rs`, `debug_model_test.rs`, `perf_test.rs`, `version_test.rs`. |
@@ -99,9 +99,10 @@ TypeScript (canonical), a Go port and a Rust port.
 
 ## The tabnas engine dependency
 
-Both runtimes depend on the unpublished `@tabnas` siblings via a
-**sibling checkout** (the standard tabnas dev model until the packages
-publish tagged releases):
+TypeScript and Go resolve published `@tabnas` packages, from the npm
+registry and the Go module proxy, so a sibling checkout is optional local
+wiring for them. Only the Rust crate's path dependencies need one (see
+"Build & test" and [`rs/AGENTS.md`](rs/AGENTS.md)):
 
 - TypeScript: the runtime tabnas packages are `peerDependencies` in
   `ts/package.json` — `@tabnas/parser` and `@tabnas/directive`, both at
@@ -109,14 +110,14 @@ publish tagged releases):
   dropped on the maintainer's instruction of 2026-10-05, and json with it
   (an application chooses the host grammar and registers its own `json`
   processor). The two, plus `@tabnas/path` (the composition tests),
-  `@tabnas/jsonic` (the tests' host grammar
-  and JSON parser), `@tabnas/debug` and `@tabnas/railroad`, are `"*"`
-  **devDependencies**; locally they resolve through the
-  `ts/node_modules/@tabnas/*` symlinks into the sibling checkouts that
-  `admin/scripts/link.sh` wires — debug for the `debug-model` composition
-  test, railroad to regenerate `ts/doc/grammar.{svg,txt}`. Do not `npm ci`
-  or delete `node_modules`: that breaks the symlinks. `engines.node` is
-  `">=24"`. Non-tabnas devDeps: `memfs` (virtual-fs tests) and
+  `@tabnas/jsonic` (the tests' host grammar and JSON parser),
+  `@tabnas/debug` (the `debug-model` composition test) and
+  `@tabnas/railroad` (to regenerate `ts/doc/grammar.{svg,txt}`), are
+  `"*"` **devDependencies**. `npm install` takes them from the registry;
+  where admin's `scripts/link.sh` has wired local checkouts,
+  `ts/node_modules/@tabnas/*` holds symlinks into them instead, and
+  `npm ci` or deleting `node_modules` drops those links. `engines.node`
+  is `">=24"`. Non-tabnas devDeps: `memfs` (virtual-fs tests) and
   `jsonic-multisource-pkg-test` (a published fixture package the `pkg`
   resolver loads).
 - Go: `go/go.mod` requires `github.com/tabnas/{parser,directive,jsonic,path}/go`
@@ -129,9 +130,10 @@ publish tagged releases):
   `go/clib` runs on the bare engine with the caller's GrammarSpec, like
   directive's and path's.
 
-Clone the siblings (`parser jsonic directive path`, plus
-`debug`/`railroad` for the optional test and diagram) next to this repo
-and build their TS first. CI does this for you (see below).
+Only the Rust side needs sibling checkouts: clone `parser`, `directive`,
+`jsonic`, `json`, `support`, `path` and `debug` next to this repo (see
+"Build & test"). CI clones the siblings it builds against and links them
+over the registry copies (see below).
 
 ## Authority and alignment rules
 
@@ -143,12 +145,13 @@ change behaviour:
 2. Port the same change to `go/plugin.go` / `go/multisource.go` AND to
    `rs/src/`.
 3. Add the case to `test/spec/*.tsv` where it is expressible as
-   input → output — those shared fixtures are the parity contract and both
-   runtimes run them (see [`test/AGENTS.md`](test/AGENTS.md)). Cases that
-   need a real filesystem (the `file` / `pkg` / preload resolvers) cannot
-   live in a fixture: mirror those across `ts/test/multisource.test.ts` and
-   `go/multisource_test.go` instead.
-4. Run both suites and confirm green.
+   input → output — those shared fixtures are the parity contract and
+   every runtime runs them (see [`test/AGENTS.md`](test/AGENTS.md)). Cases
+   that need a real filesystem (the `file` / `pkg` / preload resolvers)
+   cannot live in a fixture: mirror those across
+   `ts/test/multisource.test.ts`, `go/multisource_test.go` and
+   `rs/tests/file_corpus_test.rs` instead.
+4. Run all three suites and confirm green.
 
 Do not let the Go behaviour drift from TS. The Go port now covers the TS
 surface — three resolvers (`mem`/`file`/`pkg`), the dependency-tree
@@ -199,7 +202,7 @@ and here rather than silently diverging.
   into the grandparent node via `ctx.cfg.map.merge` / `extend` / plain
   `Object.assign`; otherwise the resolved value becomes the rule node.
 - **Not found** raises `multisource_not_found` with the search-path list
-  (`error`/`hint` registered in the plugin). Both runtimes raise it — a
+  (`error`/`hint` registered in the plugin). Every runtime raises it — a
   missing source is never a silent `null`.
 - **Cycles.** The chain of enclosing source paths travels in
   `meta.multisource.parents`; a reference resolving to one of its own
@@ -208,8 +211,8 @@ and here rather than silently diverging.
   so a diamond (one source included from two branches) is reuse, not a
   cycle. Fixtures: `test/spec/errors.tsv`.
 - **A processing failure propagates.** A nested `@missing` inside a loaded
-  source, or malformed `.json` content, fails the whole parse in both
-  runtimes (Go carries it back through `Resolution.Err`); the raw source
+  source, or malformed `.json` content, fails the whole parse in every
+  runtime (Go carries it back through `Resolution.Err`); the raw source
   text is never silently substituted for the value.
 
 ### Gotchas an agent must know
@@ -230,10 +233,11 @@ and here rather than silently diverging.
 - **`preload`** scans folders into an in-memory map up front so the
   `file` resolver can serve from memory; preloaded content is checked
   before disk. Note the plugin does **not** consume
-  `MultiSourceOptions.preload` itself (in either runtime): it is a
-  declarative record. You call `preloadFiles(opts)` / `PreloadFiles` and
-  pass the resulting map to `makeFileResolver({ preload })` /
-  `FileResolverOptions.Preload`.
+  `MultiSourceOptions.preload` itself (in any runtime): it is a
+  declarative record. You call `preloadFiles(opts)` / `PreloadFiles` /
+  `preload_files` and pass the resulting map to
+  `makeFileResolver({ preload })` / `FileResolverOptions.Preload` /
+  `FileResolver::with_preload`.
 - **Dependency tree.** Passing `meta.multisource.deps = {}` makes the
   plugin record a `tar → src` `DependencyMap` as it loads — used by
   callers (e.g. a CLI watcher) to know which files a parse touched.
@@ -256,10 +260,9 @@ npm run test-cov       # coverage → coverage/lcov.info
 
 In a wired local checkout the `@tabnas/*` deps are already symlinked into
 `ts/node_modules`, so **do not** run `npm ci` or delete `node_modules` —
-that replaces the symlinks with registry copies (or fails outright, since
-the siblings are unpublished). `npm install` is only needed for a fresh
-clone, and `npm run reset` cleans and reinstalls, so it has the same
-caveat.
+that replaces the symlinks with registry copies. `npm install` is only
+needed for a fresh clone, and `npm run reset` cleans and reinstalls, so it
+has the same caveat.
 
 `npm test` runs the **compiled** tests in `dist-test/`, so build first.
 The
@@ -287,15 +290,17 @@ cargo clippy --all-targets --all-features -- -D warnings
 the sibling crates' versions. `rs/Cargo.lock` is committed.
 
 The repo root [`Makefile`](Makefile) (adapted from voxgig/util) wraps
-both halves: `make build|test|clean` run the TS and Go sides;
+all three ports: `make build|test|clean` run the TS, Go and Rust sides;
 `make publish-go V=x.y.z` injects `V` into the `const VERSION` in
 `go/multisource.go`, commits, and tags `go/vX.Y.Z`; `make publish-ts`
-publishes the TS package at its `package.json` version. Keep the two in
+publishes the TS package at its `package.json` version. Keep the three in
 step — they are held at the same version, enforced by the `VERSION` drift
-tests in `go/version_test.go` and `ts/test/version.test.ts`, which compare
-each runtime's `VERSION` against `ts/package.json`. Local Go builds resolve
-the unpublished siblings via the `go.work` + node_modules symlinks created
-by `admin/scripts/link.sh`; there is no checked-in `go.work`.
+tests in `go/version_test.go`, `ts/test/version.test.ts` and
+`rs/tests/version_test.rs`, which compare each runtime's version against
+`ts/package.json`. Local builds resolve the published siblings unless
+`admin/scripts/link.sh` has wired in checkouts, through a `go.work` one
+level up and the `ts/node_modules/@tabnas/*` symlinks; there is no
+checked-in `go.work`.
 
 ## Verify your work
 
@@ -402,12 +407,14 @@ The steps, in order:
    suite then passes against unreleased code while appearing to verify the
    published one. Reinstalling is the part that matters.
 
-   One thing a clean install does **not** isolate:
-   `ts/test/doc-examples.test.*` resolves `@tabnas/*` by filesystem path
-   (`const TABNAS = path.join(REPO, '..')`), not through `node_modules`. If
-   unbuilt sibling checkouts sit beside this repo, those blocks fail with
-   `MODULE_NOT_FOUND` no matter what you installed — build the siblings, or
-   verify somewhere they are absent.
+   A clean install covers the doc examples too.
+   `ts/test/doc-examples.test.*` resolves a doc example's `require` through
+   `node_modules` first, and every `@tabnas` package the tested blocks name
+   here, `@tabnas/parser` and `@tabnas/jsonic`, is a devDependency, so the
+   installed copy is what runs; `@tabnas/multisource` itself resolves to
+   this repository's `ts/`. Only a `@tabnas/*` package that is not
+   installed falls back to the sibling checkout `../<x>/ts`
+   (`const TABNAS = path.join(REPO, '..')`), and no example here needs one.
 
    `npm test` already compiles here: `ts/package.json` sets `pretest` to
    `npm run build`, which npm runs automatically. No separate build step is
@@ -421,13 +428,17 @@ The steps, in order:
    ```bash
    (
      cd go
-     go mod edit -json | grep -q '"Replace": null' || { echo 'go.mod has a replace'; exit 1; }
+     go mod edit -json | jq -e '.Replace == null' >/dev/null || { echo 'go.mod has a replace'; exit 1; }
      GOWORK=off go test -count=1 ./...
    )
    ```
 
    `-count=1` because shared fixtures live outside the Go module, so a
-   changed corpus does not invalidate the test cache.
+   changed corpus does not invalidate the test cache. The check asks `jq`,
+   not `grep`: current Go leaves the `Replace` key out when there is no
+   replace, where older Go printed `"Replace": null`, and `jq` reads a
+   missing key as null, so the check passes on a clean `go.mod` and fails
+   on a replace either way.
 3. **Merge the bump through a reviewed PR.** That is the house convention —
    `CONTRIBUTING.md` squash-merges PRs and takes the title as the commit
    message — and what `release.yml`'s own header describes. A direct push to
@@ -643,7 +654,7 @@ asserts the structured grammar model: the rule set (`elem`/`list`/`map`/
 `config.start`, not `m.start`, which is undefined in this engine), that
 `MultiSource` is in `m.plugins`, and the push edges `val → multisource`
 and `multisource → val`. It loads debug dynamically and **skips** unless
-`@tabnas/debug` is installed (it is a `file:` devDependency, so `npm test`
+`@tabnas/debug` is installed (it is a `"*"` devDependency, so `npm test`
 runs it) or `TABNAS_DEBUG_PATH` points at a built sibling.
 
 `ts/test/doc-examples.test.ts` extracts fenced `js`/`javascript` blocks

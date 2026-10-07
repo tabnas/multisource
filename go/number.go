@@ -4,7 +4,7 @@ package tabnasmultisource
 
 // number.go — how a non-string directive spec becomes a source path.
 //
-// A directive may be written in object form, `@{path: ...}`, and neither
+// A directive may be written in object form, `@{path: ...}`, and no
 // runtime requires the `path` value to be a string. The canonical
 // coerces it by concatenating it onto the empty string
 // (ts/src/multisource.ts), so the coercion rules are JavaScript's, and

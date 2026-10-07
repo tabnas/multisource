@@ -6,8 +6,9 @@
 # The engine, the jsonic base (and the JSON core it needs), the directive
 # plugin, the fixture runner, the path-diving plugin and the debug plugin
 # are all PATH DEPENDENCIES on sibling checkouts (rs/Cargo.toml:
-# `tabnas = { package = "tabnas-parser", path = "../../parser/rs" }` and so on). None is published,
-# so there is no registry version to fall back on. Clone
+# `tabnas = { package = "tabnas-parser", path = "../../parser/rs" }` and so on). They are on
+# crates.io, but the committed manifest names them by path alone, so there
+# is no registry version to fall back on. Clone
 # https://github.com/tabnas/parser, https://github.com/tabnas/json,
 # https://github.com/tabnas/jsonic, https://github.com/tabnas/directive,
 # https://github.com/tabnas/support, https://github.com/tabnas/path and

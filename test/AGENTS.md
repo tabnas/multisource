@@ -1,8 +1,8 @@
 # Agents Guide — shared spec fixtures
 
-`spec/*.tsv` holds the cross-runtime conformance fixtures. Both runtimes
-auto-discover and run **every** file in this directory, so a change here
-affects TypeScript and Go together — edit with that in mind.
+`spec/*.tsv` holds the cross-runtime conformance fixtures. All three
+runtimes auto-discover and run **every** file in this directory, so a change
+here affects TypeScript, Go and Rust together — edit with that in mind.
 
 ## Format
 
@@ -53,11 +53,11 @@ there.
 ## Rules
 
 - Prefer adding a fixture here over a one-off in-language assertion when a
-  case is expressible as input → output. That is what keeps the two
+  case is expressible as input → output. That is what keeps the
   runtimes honest against each other.
-- TypeScript is canonical. If the two runtimes disagree, the TS behaviour is
-  the expected value — unless Go has exposed a genuine TS defect, in which
-  case fix TS first and pin the corrected behaviour here.
+- TypeScript is canonical. If the runtimes disagree, the TS behaviour is
+  the expected value — unless another port has exposed a genuine TS
+  defect, in which case fix TS first and pin the corrected behaviour here.
 - A new fixture must pass in EVERY runtime: run `go test ./...` (from
   `go/`), `npm test` (from `ts/`) and `cargo test --all-targets` (from
   `rs/`) before considering it done.

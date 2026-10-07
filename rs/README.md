@@ -278,29 +278,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Install
 
-Neither the engine nor the grammar plugins are published to a registry,
-so all of them are consumed as **sibling checkouts**, the standard
-tabnas development model. The plugin itself needs
-`https://github.com/tabnas/parser` and
-`https://github.com/tabnas/directive` next to this repository. It brings
-no host grammar and no JSON reader, so add the grammar you install it
-on as well; the examples here use `https://github.com/tabnas/jsonic`,
-which in turn needs `https://github.com/tabnas/json` beside it:
+The plugin and the engine are on crates.io, the engine as
+`tabnas-parser`, whose library is named `tabnas` in code. The plugin
+brings no host grammar and no JSON reader, so add the grammar you
+install it on as well; the examples here use `tabnas-jsonic`:
 
-```toml
-[dependencies]
-tabnas-multisource = { path = "../multisource/rs" }
-tabnas = { package = "tabnas-parser", path = "../parser/rs" }
-tabnas-jsonic = { path = "../jsonic/rs" }
+```bash
+cargo add tabnas-multisource tabnas-parser tabnas-jsonic
 ```
 
 A crate's dependencies are not passed on to its dependents, so
 `tabnas-multisource` alone does not put `tabnas` or a host grammar in
 the extern prelude, and the preceding examples that name them would not
-resolve without these entries. The test suite takes jsonic as a
-dev-dependency, and additionally needs
-`https://github.com/tabnas/support`, `https://github.com/tabnas/path`
-and `https://github.com/tabnas/debug` beside the repository.
+resolve without these entries.
+
+In this repository the engine and the directive plugin are taken by path
+from sibling checkouts instead, so clone `https://github.com/tabnas/parser`
+and `https://github.com/tabnas/directive` next to it. The test suite takes
+jsonic as a dev-dependency, which in turn needs
+`https://github.com/tabnas/json` beside it, and additionally needs
+`https://github.com/tabnas/support`, `https://github.com/tabnas/path` and
+`https://github.com/tabnas/debug` beside the repository. The release
+workflow swaps the engine's and the directive plugin's paths for crates.io
+versions when it publishes this crate.
 
 ## Differences from the canonical TypeScript
 
